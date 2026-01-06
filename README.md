@@ -1,4 +1,4 @@
-# Zombie Zero
+# Call of 2D Zombies
 
 A top-down CoD: Zombies clone running in the browser using Phaser 3, React, and PeerJS.
 

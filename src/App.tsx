@@ -46,7 +46,7 @@ const MainMenu = () => {
 
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
-      <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">ZOMBIE ZERO</h1>
+      <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
       <p className="text-gray-400 mb-8">Phase 2.3: Interactables</p>
       <div className="flex gap-4">
         <button 

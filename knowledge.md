@@ -1,7 +1,7 @@
 ## 1. Project Overview & Philosophy
 
 ### 1.1 Project Identity
-**Project Name:** ZombieZero (Top-Down Survival Shooter)
+**Project Name:** Call of 2D Zombies (Top-Down Survival Shooter)
 **Genre:** 2D Top-Down Shooter / Tower Defense / Sandbox
 **Core Inspiration:** Call of Duty: Zombies (Round-based survival, perks, pack-a-punch, easter eggs).
 **Platform:** Web Browser (Desktop optimized).
