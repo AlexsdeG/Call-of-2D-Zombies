@@ -7,6 +7,8 @@ import { WeaponSystem } from "../systems/WeaponSystem";
 import { GameState } from "../../types";
 import { IInteractable } from "../interfaces/IInteractable";
 import { Zombie } from "./Zombie";
+import { PerkType, PowerUpType } from '../types/PerkTypes';
+import { PERK } from '../../config/constants';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
@@ -21,7 +23,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // State tracking
   private isSprinting: boolean = false;
-  private canSprint: boolean = true; 
+  private canSprint: boolean = true;  
+  
+  // Perks & Powerups
+  private perks: Set<PerkType> = new Set();
+  private activePowerups: Map<PowerUpType, number> = new Map(); // Type -> EndTime
 
   // Optimization
   private moveVector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
@@ -147,10 +153,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.health = Math.max(0, this.health - amount);
       this.setTint(0xff0000);
       
-      // Use efficient delayed call with safety
       this.scene.time.delayedCall(200, () => {
           if(this.isValid && !this.isDead) this.clearTint();
       });
+      
+      // Juggernog Regeneration Speed? (Optional, not in prompt but common)
+      // For now just standard regen logic in update if implemented later
       
       // Update UI immediately
       EventBus.emit("player-stats-update", { health: this.health });
@@ -335,10 +343,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
 
       if (this.isSprinting) {
-        this.currentSpeed = PLAYER.DEFAULT_SPEED * PLAYER.SPRINT_SPEED_MULTIPLIER;
-        this.stamina = Math.max(0, this.stamina - PLAYER.STAMINA_DRAIN_RATE * (delta / 1000));
+        let speedMult = PLAYER.SPRINT_SPEED_MULTIPLIER;
+        let drainRate = PLAYER.STAMINA_DRAIN_RATE;
+
+        if (this.hasPerk(PerkType.STAMIN_UP)) {
+            speedMult *= PERK.STAMIN_UP_SPEED_MULTIPLIER;
+            drainRate /= PERK.STAMIN_UP_DURATION_MULTIPLIER;
+        }
+
+        this.currentSpeed = PLAYER.DEFAULT_SPEED * speedMult;
+        this.stamina = Math.max(0, this.stamina - drainRate * (delta / 1000));
       } else {
         this.currentSpeed = PLAYER.DEFAULT_SPEED;
+        
+        // Stamin-Up increases walk speed too? Usually just duration/sprint speed.
+        // Let's keep walk speed standard for now.
       }
 
       this.setVelocity(
@@ -439,5 +458,67 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   public get points(): number {
       return useGameStore.getState().playerStats.points;
+  }
+
+  // --- PERK SYSTEM ---
+  public addPerk(perk: PerkType) {
+      if (this.perks.has(perk)) return;
+      this.perks.add(perk);
+      
+      this.applyPerkEffect(perk);
+  }
+
+  public hasPerk(perk: PerkType): boolean {
+      return this.perks.has(perk);
+  }
+
+  private applyPerkEffect(perk: PerkType) {
+      switch (perk) {
+          case PerkType.JUGGERNOG:
+              this._maxHealth = PERK.JUGGERNOG_HEALTH;
+              this._health = this._maxHealth; // Heal on buy
+              EventBus.emit("player-stats-update", { health: this.health });
+              break;
+          case PerkType.SPEED_COLA:
+          case PerkType.DOUBLE_TAP:
+               // WeaponSystem checks player perks, or we notify it
+               this.weaponSystem.onPerkAcquired(perk);
+               break;
+      }
+  }
+
+  // --- POWERUP SYSTEM ---
+  public activatePowerUp(type: PowerUpType, duration: number) {
+      const endTime = this.scene.time.now + duration;
+      this.activePowerups.set(type, endTime);
+      
+      if (type === PowerUpType.MAX_AMMO) {
+          this.weaponSystem.refillAllAmmo();
+      }
+      
+      // Schedule removal? Or check in updates? 
+      // Usually easier to check hasPowerUp(type) which verifies time.
+      this.scene.time.delayedCall(duration, () => {
+          this.activePowerups.delete(type);
+          EventBus.emit('powerup-end', type);
+          this.syncPowerUpsToStore(); // Sync on end
+      });
+      
+      EventBus.emit('powerup-start', { type, duration });
+      this.syncPowerUpsToStore(); // Sync on start
+  }
+
+  private syncPowerUpsToStore() {
+      const list = Array.from(this.activePowerups.entries()).map(([type, endTime]) => ({
+          type,
+          endTime
+      }));
+      useGameStore.getState().setActivePowerUps(list);
+  }
+
+  public hasPowerUp(type: PowerUpType): boolean {
+      if (!this.activePowerups.has(type)) return false;
+      const end = this.activePowerups.get(type);
+      return end ? end > this.scene.time.now : false;
   }
 }

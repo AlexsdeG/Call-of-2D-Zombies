@@ -8,6 +8,9 @@ import { Spawner } from '../entities/Spawner';
 import { Player } from '../entities/Player';
 import { WallBuy } from '../entities/WallBuy';
 import { MysteryBox } from '../entities/MysteryBox';
+import { PerkMachine } from '../entities/PerkMachine';
+import { PackAPunch } from '../entities/PackAPunch';
+import { PerkType } from '../types/PerkTypes';
 
 export class MapManager {
     private scene: Phaser.Scene;
@@ -79,15 +82,17 @@ export class MapManager {
         player: Player,
         targetLayer?: Phaser.GameObjects.Layer,
         wallBuyGroup?: Phaser.Physics.Arcade.StaticGroup,
-        mysteryBoxGroup?: Phaser.Physics.Arcade.StaticGroup
+        mysteryBoxGroup?: Phaser.Physics.Arcade.StaticGroup,
+        perkMachineGroup?: Phaser.Physics.Arcade.StaticGroup,
+        packAPunchGroup?: Phaser.Physics.Arcade.StaticGroup
     ) {
         if (!mapData.objects || !this.pathfindingManager) return;
         
         // Ensure groups exist if passed as optional
-        if (wallBuyGroup && mysteryBoxGroup) {
+        if (wallBuyGroup && mysteryBoxGroup && perkMachineGroup && packAPunchGroup) {
              // Logic proceeds
         } else {
-            console.warn("Missing groups for economy items");
+            console.warn("Missing groups for items");
         }
         
         mapData.objects.forEach(obj => {
@@ -169,6 +174,20 @@ export class MapManager {
 
                     const box = new MysteryBox(this.scene, obj.x, obj.y, rotation, isFirst);
                     mysteryBoxGroup.add(box);
+                 }
+             } else if (obj.type === 'perk_machine') {
+                 if (perkMachineGroup) {
+                     const perkStr = this.getProperty(obj, 'perk', 'JUGGERNOG');
+                     // Convert string to Enum
+                     const perkType = Object.values(PerkType).find(p => p === perkStr) || PerkType.JUGGERNOG;
+                     
+                     const machine = new PerkMachine(this.scene, obj.x, obj.y, perkType as PerkType);
+                     perkMachineGroup.add(machine);
+                 }
+             } else if (obj.type === 'pack_a_punch') {
+                 if (packAPunchGroup) {
+                     const pap = new PackAPunch(this.scene, obj.x, obj.y);
+                     packAPunchGroup.add(pap);
                  }
              }
         });

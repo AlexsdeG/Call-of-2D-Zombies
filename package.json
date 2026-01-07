@@ -1,7 +1,7 @@
 {
   "name": "call-of-2d-zombies",
   "private": true,
-  "version": "0.1.17",
+  "version": "0.1.18",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -11,6 +11,7 @@ import './tests/weaponTests';
 import './tests/mapTests';
 import './tests/zombieTests';
 import './tests/interactionTests'; 
+import { ActivePowerUps } from './game/ui/ActivePowerUps';
 import Phaser from 'phaser';
 
 // --- UI COMPONENTS ---
@@ -496,7 +497,8 @@ const App: React.FC = () => {
            {gameState === GameState.GAME_OVER && <GameOverMenu />}
            {gameState === GameState.EDITOR && <EditorOverlay />}
            {gameState === GameState.GAME && <InteractionPrompt />}
-           {gameState === GameState.GAME && <WeaponNameToast />}
+            {gameState === GameState.GAME && <WeaponNameToast />}
+            {gameState === GameState.GAME && <ActivePowerUps />}
         </div>
       </div>
     </div>

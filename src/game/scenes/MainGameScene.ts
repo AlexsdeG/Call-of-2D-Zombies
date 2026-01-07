@@ -14,6 +14,10 @@ import { Door } from '../entities/Door';
 import { Spawner } from '../entities/Spawner';
 import { WallBuy } from '../entities/WallBuy';
 import { MysteryBox } from '../entities/MysteryBox';
+import { PerkMachine } from '../entities/PerkMachine';
+import { PackAPunch } from '../entities/PackAPunch';
+import { PowerUp } from '../entities/PowerUp';
+import { PowerUpType } from '../types/PerkTypes';
 import { useGameStore } from '../../store/useGameStore';
 import { IGameMode } from '../gamemodes/IGameMode';
 import { SurvivalMode } from '../gamemodes/SurvivalMode';
@@ -40,6 +44,11 @@ export class MainGameScene extends Phaser.Scene {
   // New Groups for Phase 2.3
   private doorGroup!: Phaser.Physics.Arcade.StaticGroup;
   private barricadeGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private wallBuyGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private mysteryBoxGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private perkMachineGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private packAPunchGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private powerUpGroup!: Phaser.Physics.Arcade.Group;
   
   // Interactable Group - Normal Group (Not Physics) to store references for Player interaction
   private interactableGroup!: Phaser.GameObjects.Group;
@@ -116,6 +125,45 @@ export class MainGameScene extends Phaser.Scene {
     EventBus.on('exit-game', this.onExitGame);
     EventBus.on('restart-game', this.onRestartGame);
     EventBus.on('game-over', this.onGameOver);
+    
+    // PowerUp Listener
+    EventBus.on('spawn-powerup', (data: {x: number, y: number, type: PowerUpType}) => {
+        if (!this.scene.isActive()) return;
+        const pu = new PowerUp(this, data.x, data.y, data.type);
+        this.powerUpGroup.add(pu);
+    });
+
+    // Global PowerUp Effects
+    EventBus.on('trigger-carpenter', () => {
+        if (!this.scene.isActive()) return;
+        let fixedCount = 0;
+        this.barricadeGroup.children.each(b => {
+            const bar = b as Barricade;
+            if (bar.active) {
+                bar.fullyRepair();
+                fixedCount++;
+            }
+            return true;
+        });
+        
+        // Bonus Points
+        this.player.addPoints(200);
+        EventBus.emit('show-notification', "Carpenter! Barricades Fixed!");
+    });
+
+    EventBus.on('trigger-nuke', () => {
+        if (!this.scene.isActive()) return;
+        this.zombieGroup.children.each(z => {
+            const zombie = z as Zombie;
+            if (zombie.active) {
+                zombie.takeDamage(10000); // Massive damage
+            }
+            return true;
+        });
+        
+        this.player.addPoints(400); 
+        EventBus.emit('show-notification', "Kaboom! Nuke!");
+    });
 
     // 0. Setup Physics Groups
     this.bulletGroup = this.physics.add.group({ classType: Projectile, runChildUpdate: true, maxSize: 100 });
@@ -132,6 +180,11 @@ export class MainGameScene extends Phaser.Scene {
     this.mysteryBoxGroup = this.physics.add.staticGroup({
         classType: MysteryBox
     });
+    this.perkMachineGroup = this.physics.add.staticGroup({ classType: PerkMachine });
+    this.packAPunchGroup = this.physics.add.staticGroup({ classType: PackAPunch });
+    
+    // Dynamic group for PowerUps
+    this.powerUpGroup = this.physics.add.group({ classType: PowerUp, runChildUpdate: true });
     
     this.interactableGroup = this.add.group(); 
 
@@ -170,7 +223,9 @@ export class MainGameScene extends Phaser.Scene {
             this.player,
             this.targetLayer,
             this.wallBuyGroup,
-            this.mysteryBoxGroup
+            this.mysteryBoxGroup,
+            this.perkMachineGroup,
+            this.packAPunchGroup
         );
     }
     
@@ -183,12 +238,19 @@ export class MainGameScene extends Phaser.Scene {
         this.physics.add.collider(this.player, mb);
         return true; 
     });
+    this.perkMachineGroup.children.each(pm => { this.interactableGroup.add(pm); this.physics.add.collider(this.player, pm); return true; });
+    this.packAPunchGroup.children.each(pap => { this.interactableGroup.add(pap); this.physics.add.collider(this.player, pap); return true; });
     
     // Collisions for MysteryBox (WallBuy is visual only on walls)
     this.physics.add.collider(this.zombieGroup, this.mysteryBoxGroup);
+    this.physics.add.collider(this.zombieGroup, this.perkMachineGroup);
+    this.physics.add.collider(this.zombieGroup, this.packAPunchGroup);
+    
     this.physics.add.collider(this.bulletGroup, this.mysteryBoxGroup, (b, box) => {
         (b as Projectile).disableBody(true, true);
     });
+    this.physics.add.collider(this.bulletGroup, this.perkMachineGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
+    this.physics.add.collider(this.bulletGroup, this.packAPunchGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
 
 
 
@@ -271,6 +333,9 @@ export class MainGameScene extends Phaser.Scene {
       this.events.off('bullet-hit-wall');
       this.events.off('show-damage-text');
       EventBus.off('weapon-switch');
+      EventBus.off('spawn-powerup');
+      EventBus.off('trigger-carpenter');
+      EventBus.off('trigger-nuke');
       
       // Stop all Timers and Tweens to prevent "accessing property of undefined" errors
       this.time.removeAllEvents();
@@ -427,7 +492,13 @@ export class MainGameScene extends Phaser.Scene {
 
       // Interactables Collisions
       this.physics.add.collider(this.player, this.doorGroup);
+      this.physics.add.collider(this.player, this.doorGroup);
       this.physics.add.collider(this.player, this.barricadeGroup);
+
+      // PowerUp Pickup - Use Overlap!
+      this.physics.add.overlap(this.player, this.powerUpGroup, (p, pu) => {
+          (pu as PowerUp).collect(p as Player);
+      });
       
       this.physics.add.collider(this.bulletGroup, this.doorGroup, (b, d) => this.handleBulletImpact(b as Projectile));
       // this.physics.add.collider(this.bulletGroup, this.barricadeGroup, (b, bar) => this.handleBulletImpact(b as Projectile)); // Removed to allow bullets to pass through

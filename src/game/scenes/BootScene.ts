@@ -139,6 +139,39 @@ export class BootScene extends Phaser.Scene {
     pxGraphics.generateTexture('pixel', 1, 1);
     pxGraphics.destroy();
 
+    // 12. Perk Machine Base (Generic Tall Box)
+    const pmGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    pmGraphics.fillStyle(0xcccccc, 1); // Light Gray Base (Tint will color it)
+    pmGraphics.fillRect(0, 0, 32, 48); // Tall
+    pmGraphics.lineStyle(2, 0x333333);
+    pmGraphics.strokeRect(0, 0, 32, 48);
+    // Detail (Display Screen)
+    pmGraphics.fillStyle(0x000000, 1);
+    pmGraphics.fillRect(4, 8, 24, 16);
+    pmGraphics.generateTexture('perk_machine_base', 32, 48);
+    pmGraphics.destroy();
+
+    // 13. Pack-a-Punch (Complex Machine)
+    const papGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    papGraphics.fillStyle(0x4B0082, 1); // Indigo/Purple
+    papGraphics.fillRect(0, 0, 48, 48); // Large
+    papGraphics.lineStyle(3, 0xFFD700); // Gold Trim
+    papGraphics.strokeRect(0, 0, 48, 48);
+    // Gears / Tech Details
+    papGraphics.fillStyle(0x00ffff, 0.5); // Glowy bits
+    papGraphics.fillCircle(24, 24, 10);
+    papGraphics.generateTexture('pack_a_punch', 48, 48);
+    papGraphics.destroy();
+    
+    // 14. PowerUp Base (Floating Icon Background)
+    const puGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    puGraphics.fillStyle(0xffffff, 1); // White (Tinted later)
+    puGraphics.fillCircle(16, 16, 12);
+    puGraphics.lineStyle(2, 0xffff00); // Gold Ring
+    puGraphics.strokeCircle(16, 16, 12);
+    puGraphics.generateTexture('powerup_base', 32, 32);
+    puGraphics.destroy();
+
     console.log('BootScene: Assets Ready');
     EventBus.emit('scene-ready', this);
     this.scene.start('MenuScene');

@@ -4,6 +4,8 @@ import { EventBus } from '../EventBus';
 import { WEAPON_DEFS } from '../../config/constants';
 import { SoundManager } from './SoundManager';
 import { Projectile } from '../entities/Projectile';
+import { PerkType } from '../types/PerkTypes'; 
+import { PERK } from '../../config/constants';
 
 interface WeaponEntry {
     key: keyof typeof WEAPON_DEFS;
@@ -18,6 +20,9 @@ export class WeaponSystem {
     // Inventory
     private inventory: (WeaponEntry | null)[] = [null, null, null]; // Slot 0, 1, 2
     private activeSlot: number = 0;
+    
+    // Perks
+    private perks: Set<PerkType> = new Set();
 
     // Visuals
     private recoilOffset: number = 0;
@@ -168,10 +173,28 @@ export class WeaponSystem {
         const entry = this.inventory.find(e => e && e.key === key);
         if (entry) {
             entry.state.currentAmmo = entry.attributes.magSize;
-            entry.state.totalAmmo = entry.attributes.magSize * 4; // Max Reserve
+            // Upgrade check: if upgraded, reserve might be bigger.
+            // For now use default * 4, but really we should store MaxReserve in state if dynamic.
+            // Re-using the formula:
+            entry.state.totalAmmo = entry.attributes.magSize * 4; 
             entry.state.isReloading = false;
             this.emitStats();
         }
+    }
+    
+    public refillAllAmmo() {
+        this.inventory.forEach(entry => {
+            if (entry) {
+                entry.state.currentAmmo = entry.attributes.magSize;
+                entry.state.totalAmmo = entry.attributes.magSize * 4;
+                entry.state.isReloading = false;
+            }
+        });
+        this.emitStats();
+    }
+
+    public onPerkAcquired(perk: PerkType) {
+        this.perks.add(perk);
     }
     
     public setWalls(wallLayer: Phaser.Tilemaps.TilemapLayer) {
@@ -184,7 +207,12 @@ export class WeaponSystem {
 
         // 1. Handle Reload
         if (entry.state.isReloading) {
-            if (time >= entry.state.reloadStartTime + entry.attributes.reloadTime) {
+            let reloadDuration = entry.attributes.reloadTime;
+            if (this.perks.has(PerkType.SPEED_COLA)) {
+                reloadDuration *= PERK.SPEED_COLA_RELOAD_MULTIPLIER;
+            }
+
+            if (time >= entry.state.reloadStartTime + reloadDuration) {
                 this.finishReload(entry);
             }
         }
@@ -215,7 +243,12 @@ export class WeaponSystem {
 
         if (entry.state.isReloading) return;
         
-        if (time < entry.state.lastFired + entry.attributes.fireRate) return;
+        let fireDelay = entry.attributes.fireRate;
+        if (this.perks.has(PerkType.DOUBLE_TAP)) {
+            fireDelay *= PERK.DOUBLE_TAP_FIRERATE_MULTIPLIER;
+        }
+
+        if (time < entry.state.lastFired + fireDelay) return;
 
         if (entry.state.currentAmmo <= 0) {
             SoundManager.play(this.scene, 'click', { volume: 0.5 }); 
@@ -322,5 +355,26 @@ export class WeaponSystem {
             maxAmmo: entry.state.totalAmmo,
             isReloading: entry.state.isReloading
         });
+    }
+
+    public upgradeCurrentWeapon() {
+        const entry = this.getActiveEntry();
+        if (!entry) return;
+
+        // Visual Change
+        entry.attributes.name += ' (PaP)';
+        
+        // Stat Boosts
+        entry.attributes.damage *= 2;
+        entry.attributes.magSize = Math.floor(entry.attributes.magSize * 1.5);
+        // Update State
+        entry.state.totalAmmo = entry.attributes.magSize * 6; // More reserve
+        
+        // Fill ammo
+        entry.state.currentAmmo = entry.attributes.magSize;
+        
+        // Emit update
+        EventBus.emit('weapon-switch', entry.attributes.name);
+        this.emitStats();
     }
 }

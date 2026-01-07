@@ -91,6 +91,16 @@ export class Barricade extends Phaser.Physics.Arcade.Sprite implements IInteract
         });
     }
 
+    public fullyRepair() {
+        this.panels = this.MAX_PANELS;
+        
+        if (this.pathfindingManager) {
+             this.pathfindingManager.setTileWalkable(this.x, this.y, false);
+        }
+
+        this.updateState();
+    }
+
     public removePanel() {
         if (this.panels <= 0) return;
 

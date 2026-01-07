@@ -123,19 +123,26 @@ export const WEAPON_DEFS = {
     }
 } as const;
 
-export const UI = {
-    COLORS: {
-      HEALTH: 0xd9534f, // Phaser Hex Red
-      STAMINA: 0x5cb85c, // Phaser Hex Green
-      AMMO: 0xf0ad4e,    // Phaser Hex Orange
-      TEXT_MAIN: '#ffffff',
-      TEXT_MUTED: '#888888',
-    },
-    FONTS: {
-      MAIN: 'monospace',
-    }
-  } as const;
+// ... existing UI constants ...
   
+  export const PERK = {
+      JUGGERNOG_COST: 2500,
+      SPEED_COLA_COST: 3000,
+      DOUBLE_TAP_COST: 2000,
+      STAMIN_UP_COST: 2000,
+      JUGGERNOG_HEALTH: 250,
+      SPEED_COLA_RELOAD_MULTIPLIER: 0.5,
+      DOUBLE_TAP_FIRERATE_MULTIPLIER: 0.66,
+      STAMIN_UP_SPEED_MULTIPLIER: 1.2,
+      STAMIN_UP_DURATION_MULTIPLIER: 2.0,
+  } as const;
+
+  export const POWERUP = {
+      DURATION: 30000, // 30s
+      INSTA_KILL_DAMAGE: 9999,
+      DOUBLE_POINTS_MULTIPLIER: 2,
+  } as const;
+
   export const DEBUG = {
     SHOW_COLLIDERS: (import.meta as any).env?.DEV ?? false,
     SHOW_PATHFINDING: false,

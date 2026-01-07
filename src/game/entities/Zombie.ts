@@ -4,6 +4,10 @@ import { Player } from './Player';
 import { PathfindingManager } from '../systems/PathfindingManager';
 import { Barricade } from './Barricade';
 import { useGameStore } from '../../store/useGameStore';
+import { PowerUp } from './PowerUp';
+import { PowerUpType } from '../types/PerkTypes';
+import { POWERUP } from '../../config/constants';
+import { EventBus } from '../EventBus';
 
 type ZombieState = 'SPAWN' | 'IDLE' | 'PATHING' | 'CHASE' | 'ATTACK' | 'ATTACK_BARRIER' | 'DEAD';
 
@@ -178,6 +182,11 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
     public takeDamage(amount: number) {
         if (this.aiState === 'DEAD') return;
 
+        // Check Insta-Kill
+        if (this.target.hasPowerUp(PowerUpType.INSTA_KILL)) {
+            amount = POWERUP.INSTA_KILL_DAMAGE;
+        }
+
         this.health -= amount;
 
         // Visual Feedback
@@ -206,7 +215,16 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
         if (this.body) this.body.enable = false;
 
         const currentPoints = useGameStore.getState().playerStats.points;
-        useGameStore.getState().updatePlayerStats({ points: currentPoints + 100 });
+        let pointsToAdd = 100;
+        if (this.target.hasPowerUp(PowerUpType.DOUBLE_POINTS)) {
+            pointsToAdd *= POWERUP.DOUBLE_POINTS_MULTIPLIER;
+        }
+        useGameStore.getState().updatePlayerStats({ points: currentPoints + pointsToAdd });
+
+        // PowerUp Drop Chance (e.g. 3% chance)
+        if (Math.random() < 0.03) {
+            this.spawnPowerUp();
+        }
 
         this.scene.tweens.add({
             targets: this,
@@ -392,5 +410,16 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
             }
         }
         return true;
+    }
+    
+    private spawnPowerUp() {
+        if (!this.scene.sys.isActive()) return;
+        
+        const types = Object.values(PowerUpType);
+        const randomType = types[Math.floor(Math.random() * types.length)];
+        
+        
+        EventBus.emit('spawn-powerup', { x: this.x, y: this.y, type: randomType });
+        console.log(`Zombie spawned PowerUp: ${randomType}`);
     }
 }
