@@ -235,6 +235,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       }
   }
 
+  public isInteractJustDown(): boolean {
+      return Phaser.Input.Keyboard.JustDown(this.keys.interact);
+  }
+
   private handleMelee(time: number) {
       if (time < this.lastMeleeTime + this.MELEE_COOLDOWN) return;
       this.lastMeleeTime = time;

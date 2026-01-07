@@ -409,6 +409,7 @@ export class MainGameScene extends Phaser.Scene {
       if (this.interactableGroup) this.interactableGroup.clear(true, true);
       if (this.zombieGroup) this.zombieGroup.clear(true, true);
       if (this.bulletGroup) this.bulletGroup.clear(true, true);
+      if (this.powerUpGroup) this.powerUpGroup.clear(true, true);
       
       MysteryBox.reset();
 

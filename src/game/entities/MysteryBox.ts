@@ -104,6 +104,12 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
     public static reset() {
         MysteryBox.allBoxes = [];
         MysteryBox.activeBoxIndex = -1;
+        
+        MysteryBox.isFireSale = false;
+        if (MysteryBox.fireSaleTimer) {
+            MysteryBox.fireSaleTimer.remove(false);
+            MysteryBox.fireSaleTimer = undefined;
+        }
     }
 
     private static setActiveBox(index: number) {
@@ -153,19 +159,15 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
     }
 
     private updateVisuals() {
+        // Base Tint
+        const color = (this.isActiveBox || MysteryBox.isFireSale) ? 0xffffff : 0x555555;
+        this.setTint(color);
+        if (this.lidSprite) this.lidSprite.setTint(color);
+        
         if (this.isActiveBox || MysteryBox.isFireSale) {
-            this.setTint(0xffffff); // Normal
             // Reset position to closed state
             this.resetLidPosition();
-            
-            // Fire Sale Visual?
-            if (MysteryBox.isFireSale) {
-                // maybe pulse or different tint?
-                // this.setTint(0xffdddd); 
-            }
-        } else {
-            this.setTint(0x555555); // Dark/Inactive
-        }
+        } 
     }
     
     private resetLidPosition() {
@@ -183,13 +185,12 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
     
     // ...
 
-    private lastInteractionTime: number = 0;
+
 
     public interact(player: Player, delta?: number) {
-        // Debounce Interaction (Prevent accidental double buy/pickup)
-        const now = this.scene.time.now;
-        if (now < this.lastInteractionTime + 500) return; // 500ms debounce
-        this.lastInteractionTime = now;
+        // Enforce Single Press for Buy (Prevent accidental hold-to-buy)
+        // For interactions that cost money or change state drastically, single press is safer.
+        if (!player.isInteractJustDown()) return;
 
         // Allow interaction if active box OR fire sale is on
         const canUse = this.isActiveBox || MysteryBox.isFireSale;
@@ -259,7 +260,9 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         // In Fire Sale, typically Teddy Bear is disabled or behaves differently? 
         // For simplicity, let's keep normal logic but maybe reduce chance in Fire Sale?
         // User didn't specify, so normal logic.
-        if (MysteryBox.allBoxes.length > 1 && Math.random() < 0.2) {
+        // Teddy Bear Check (If multiple boxes exist)
+        // No Teddy Bear during Fire Sale
+        if (!MysteryBox.isFireSale && MysteryBox.allBoxes.length > 1 && Math.random() < 0.2) {
              // MOVE BOX
              this.handleTeddyBear(player);
              return;
@@ -305,24 +308,28 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         SoundManager.play(this.scene, 'click'); // Replace with laugh?
         
         // Refund Cost
-        player.addPoints(this.cost);
+        player.addPoints(this.cost); // Actually in CoD you usually lose the money, but keep refund for now or remove if requested. User didn't specify refund change.
         
         this.isTeddyBear = true;
         
-        this.scene.time.delayedCall(1000, () => {
+        // Faster sequence
+        this.scene.time.delayedCall(800, () => {
              // Pass turn to next box logic
-             // If Fire Sale is active, this is tricky. 
-             // Ideally Fire Sale ends or we just move the "real" active box index.
-             // Let's just change the activeIndex.
-            let newIndex = MysteryBox.activeBoxIndex;
-            while (newIndex === MysteryBox.activeBoxIndex) {
-                newIndex = Phaser.Math.Between(0, MysteryBox.allBoxes.length - 1);
-            }
-            
-            // If Fire Sale, this won't change visibility immediately for others, 
-            // but will set the state for when Fire Sale ends.
-            MysteryBox.setActiveBox(newIndex);
-            this.resetToIdle();
+             
+             // Ensure we pick a DIFFERENT box
+             const currentIndex = MysteryBox.activeBoxIndex;
+             let newIndex = currentIndex;
+             
+             // Safety loop
+             const available = MysteryBox.allBoxes.map((_, i) => i).filter(i => i !== currentIndex);
+             if (available.length > 0) {
+                 newIndex = Phaser.Utils.Array.GetRandom(available);
+             }
+             
+             MysteryBox.setActiveBox(newIndex);
+             
+             // Instant Close / Hide
+             this.resetToIdle(true);
         });
     }
     
@@ -337,10 +344,11 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
                 SoundManager.play(this.scene, 'weapon_pistol_reload'); 
             }
         }
-        this.resetToIdle();
+        // INSTANTLY CLOSE
+        this.resetToIdle(true);
     }
     
-    private resetToIdle() {
+    private resetToIdle(instant: boolean = false) {
         this.isPresenting = false;
         this.isTeddyBear = false;
         this.selectedWeaponKey = null;
@@ -350,14 +358,24 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         // Close Lid (Return to base offset)
         const rad = Phaser.Math.DegToRad(this.angle);
         const closedOffset = new Phaser.Math.Vector2(0, -10).rotate(rad);
+        
+        const targetX = this.x + closedOffset.x;
+        const targetY = this.y + closedOffset.y;
 
-        this.scene.tweens.add({
-            targets: this.lidSprite,
-            x: this.x + closedOffset.x,
-            y: this.y + closedOffset.y,
-            duration: 500,
-            ease: 'Bounce.out'
-        });
+        if (instant) {
+            this.lidSprite.setPosition(targetX, targetY);
+            // Ensure no lingering tween
+            this.scene.tweens.killTweensOf(this.lidSprite);
+        } else {
+            this.scene.tweens.add({
+                targets: this.lidSprite,
+                x: targetX,
+                y: targetY,
+                duration: 500,
+                ease: 'Bounce.out'
+            });
+        }
+        
         if (this.pickupTimer) this.pickupTimer.remove(false);
     }
 
