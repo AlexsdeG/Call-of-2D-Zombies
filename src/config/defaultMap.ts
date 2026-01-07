@@ -107,5 +107,17 @@ export const DEBUG_MAP: MapData = {
         
         // Zone 1/2 Spawners (Right side garden)
         { type: "spawner", x: 45 * 32, y: 25 * 32, properties: { zone: 2 } },
+
+        // --- ECONOMY ---
+        // WallBuy (Spawn Room - Left Wall)
+        { type: "wall_buy", x: 15 * 32 + 16, y: 22 * 32 + 16, properties: { weapon: "SHOTGUN", cost: 500 } },
+        
+        // Mystery Boxes (One in each room)
+        // Spawn Room
+        { type: "mystery_box", x: 22 * 32, y: 25 * 32, properties: { rotation: 90, first: true } },
+        // Top-Right Room
+        { type: "mystery_box", x: 30 * 32, y: 20 * 32 },
+        // Bottom-Right Room
+        { type: "mystery_box", x: 30 * 32, y: 30 * 32 },
     ]
 };

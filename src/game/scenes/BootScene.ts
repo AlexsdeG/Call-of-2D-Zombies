@@ -102,6 +102,43 @@ export class BootScene extends Phaser.Scene {
     baGraphics.generateTexture('barricade', 32, 32);
     baGraphics.destroy();
 
+    // 9. Wall Buy (Chalk Outline)
+    const wbGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    wbGraphics.lineStyle(2, 0xffffff, 1);
+    wbGraphics.strokeRect(4, 8, 24, 16); // Gun shape outline
+    wbGraphics.moveTo(4, 24); wbGraphics.lineTo(12, 32); // Handle
+    wbGraphics.strokePath();
+    wbGraphics.generateTexture('wallbuy_texture', 32, 32);
+    wbGraphics.destroy();
+
+    // 10. Mystery Box (Crate + Lid)
+    // Box
+    const mbGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    mbGraphics.fillStyle(0x8B4513, 1); // Dark brown
+    mbGraphics.fillRect(0, 0, 64, 32);
+    mbGraphics.lineStyle(4, 0xFFD700); // Gold trim
+    mbGraphics.strokeRect(0, 0, 64, 32);
+    mbGraphics.fillStyle(0x000000, 1); 
+    mbGraphics.fillCircle(32, 16, 8); // Question mark circle bg
+    mbGraphics.generateTexture('mysterybox', 64, 32);
+    mbGraphics.destroy();
+    
+    // Lid
+    const mblGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    mblGraphics.fillStyle(0xA0522D, 1); // Lighter brown
+    mblGraphics.fillRect(0, 0, 64, 10);
+    mblGraphics.lineStyle(2, 0xFFD700);
+    mblGraphics.strokeRect(0, 0, 64, 10);
+    mblGraphics.generateTexture('mysterybox_lid', 64, 10);
+    mblGraphics.destroy();
+
+    // 11. Pixel (Helper)
+    const pxGraphics = this.make.graphics({ x: 0, y: 0 }, false);
+    pxGraphics.fillStyle(0xffffff, 1);
+    pxGraphics.fillRect(0, 0, 1, 1);
+    pxGraphics.generateTexture('pixel', 1, 1);
+    pxGraphics.destroy();
+
     console.log('BootScene: Assets Ready');
     EventBus.emit('scene-ready', this);
     this.scene.start('MenuScene');

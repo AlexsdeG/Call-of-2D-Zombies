@@ -12,6 +12,8 @@ import { Zombie } from '../entities/Zombie';
 import { Barricade } from '../entities/Barricade';
 import { Door } from '../entities/Door';
 import { Spawner } from '../entities/Spawner';
+import { WallBuy } from '../entities/WallBuy';
+import { MysteryBox } from '../entities/MysteryBox';
 import { useGameStore } from '../../store/useGameStore';
 import { IGameMode } from '../gamemodes/IGameMode';
 import { SurvivalMode } from '../gamemodes/SurvivalMode';
@@ -24,7 +26,7 @@ export class MainGameScene extends Phaser.Scene {
   private gameMode!: IGameMode;
   
   private crates: Phaser.GameObjects.Sprite[] = [];
-  private targets: Phaser.GameObjects.Sprite[] = []; 
+  private targets: Phaser.GameObjects.Sprite[] = [];
   private customWalls: Phaser.GameObjects.Sprite[] = [];
   private spawners: Spawner[] = [];
   
@@ -125,6 +127,12 @@ export class MainGameScene extends Phaser.Scene {
     // Interactables
     this.doorGroup = this.physics.add.staticGroup({ classType: Door });
     this.barricadeGroup = this.physics.add.staticGroup({ classType: Barricade });
+    // Economy
+    this.wallBuyGroup = this.physics.add.staticGroup({ classType: WallBuy });
+    this.mysteryBoxGroup = this.physics.add.staticGroup({
+        classType: MysteryBox
+    });
+    
     this.interactableGroup = this.add.group(); 
 
     this.targetLayer = this.add.layer();
@@ -143,6 +151,7 @@ export class MainGameScene extends Phaser.Scene {
     // 2. Create Player First
     this.player = new Player(this, 100, 100, this.bulletGroup);
     this.player.setInteractables(this.interactableGroup); 
+    this.player.setZombieGroup(this.zombieGroup); 
 
     // 3. Load Map
     const valid = this.mapManager.validate(DEBUG_MAP);
@@ -159,12 +168,27 @@ export class MainGameScene extends Phaser.Scene {
             this.spawners, 
             this.zombieGroup, 
             this.player,
-            this.targetLayer
+            this.targetLayer,
+            this.wallBuyGroup,
+            this.mysteryBoxGroup
         );
     }
     
     this.doorGroup.children.each(d => { this.interactableGroup.add(d); return true; });
     this.barricadeGroup.children.each(b => { this.interactableGroup.add(b); return true; });
+    this.wallBuyGroup.children.each(wb => { this.interactableGroup.add(wb); return true; });
+    this.mysteryBoxGroup.children.each(mb => { 
+        this.interactableGroup.add(mb); 
+        // Verify Collision
+        this.physics.add.collider(this.player, mb);
+        return true; 
+    });
+    
+    // Collisions for MysteryBox (WallBuy is visual only on walls)
+    this.physics.add.collider(this.zombieGroup, this.mysteryBoxGroup);
+    this.physics.add.collider(this.bulletGroup, this.mysteryBoxGroup, (b, box) => {
+        (b as Projectile).disableBody(true, true);
+    });
 
 
 
@@ -210,11 +234,18 @@ export class MainGameScene extends Phaser.Scene {
     this.setupCollisions();
 
     // Events
-    this.events.on('bullet-hit-wall', (coords: {x: number, y: number}) => {
+      this.events.on('bullet-hit-wall', (coords: {x: number, y: number}) => {
         if (!this.scene.isActive()) return;
         const emitter = this.data.get('sparkEmitter') as Phaser.GameObjects.Particles.ParticleEmitter;
         if (emitter) emitter.explode(5, coords.x, coords.y);
     });
+
+    this.events.on('show-damage-text', (data: {x: number, y: number, amount: number}) => {
+        this.showDamageText(data.x, data.y, data.amount, 'normal');
+    });
+
+    // 12. UI Components
+    // React handles WeaponToast via EventBus 'weapon-switch'
 
     this.fpsEvent = this.time.addEvent({
       delay: 500, loop: true,
@@ -235,9 +266,11 @@ export class MainGameScene extends Phaser.Scene {
       // Clean up SPECIFIC listeners only
       EventBus.off('exit-game', this.onExitGame);
       EventBus.off('restart-game', this.onRestartGame);
-      EventBus.off('game-over', this.onGameOver);
+      this.events.off('game-over', this.onGameOver);
       
       this.events.off('bullet-hit-wall');
+      this.events.off('show-damage-text');
+      EventBus.off('weapon-switch');
       
       // Stop all Timers and Tweens to prevent "accessing property of undefined" errors
       this.time.removeAllEvents();
@@ -262,6 +295,8 @@ export class MainGameScene extends Phaser.Scene {
       if (this.zombieGroup) this.zombieGroup.clear(true, true);
       if (this.bulletGroup) this.bulletGroup.clear(true, true);
       
+      MysteryBox.reset();
+
       this.input.setDefaultCursor('default');
       console.log('MainGameScene: Shutdown complete');
   }
@@ -294,6 +329,8 @@ export class MainGameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, worldPoint.x, worldPoint.y);
       const stats = this.player.weaponSystem.getActiveWeaponStats();
       
+      if (!stats) return; 
+
       let color = 0xffffff; 
       let isCross = false; 
       
@@ -462,6 +499,7 @@ export class MainGameScene extends Phaser.Scene {
       if(emitter) emitter.explode(10, bullet.x, bullet.y);
 
       if (target instanceof Zombie) {
+          this.player.addPoints(10);
           target.takeDamage(damage);
       } else {
           // Target Box Damage Logic

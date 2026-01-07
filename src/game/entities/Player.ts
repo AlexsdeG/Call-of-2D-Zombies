@@ -6,6 +6,7 @@ import { EventBus } from "../EventBus";
 import { WeaponSystem } from "../systems/WeaponSystem";
 import { GameState } from "../../types";
 import { IInteractable } from "../interfaces/IInteractable";
+import { Zombie } from "./Zombie";
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
@@ -26,8 +27,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private moveVector: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
   private cursorWorldPos: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
 
+
   // Interaction (Now a regular Group, not Physics group)
   private interactables: Phaser.GameObjects.Group | null = null;
+  private zombieGroup: Phaser.Physics.Arcade.Group | null = null;
+  private lastMeleeTime: number = 0;
+  private readonly MELEE_COOLDOWN = 500;
 
   // Sync timers
   public get health(): number {
@@ -69,7 +74,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
     // Systems Init
     this.weaponSystem = new WeaponSystem(scene, this, bulletGroup);
-
+    // Default weapon
+    this.weaponSystem.equip('PISTOL'); // Default to Slot 3 (Index 2) handled by WeaponSystem defaults if logic is smart, or we pass valid default
+    
     // Input Init
     if (scene.input.keyboard) {
       this.keys = scene.input.keyboard.addKeys({
@@ -80,7 +87,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         sprint: CONTROLS.SPRINT,
         reload: CONTROLS.RELOAD,
         pause: CONTROLS.PAUSE,
-        interact: CONTROLS.INTERACT
+        interact: CONTROLS.INTERACT,
+        melee: CONTROLS.MELEE,
+        // Slots
+        slot1: CONTROLS.SLOT_1,
+        slot2: CONTROLS.SLOT_2,
+        slot3: CONTROLS.SLOT_3
       }) as Record<string, Phaser.Input.Keyboard.Key>;
     }
     
@@ -96,6 +108,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         }
     };
     scene.input.on('pointerdown', this.onPointerDown);
+    
+    // Mouse Wheel
+    scene.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: any, deltaX: number, deltaY: number, deltaZ: number) => {
+        if (this.scene.scene.isPaused('MainGameScene') || this.isDead) return;
+        this.weaponSystem.cycleWeapon(deltaY);
+    });
 
     // Listen to weapon events
     EventBus.on('weapon-update', (data: any) => {
@@ -118,6 +136,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       // Remove Input Listener
       if (this.scene && this.scene.input) {
           this.scene.input.off('pointerdown', this.onPointerDown);
+          this.scene.input.off('wheel'); // Clean up wheel
       }
       super.destroy(fromScene);
   }
@@ -157,6 +176,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.interactables = group;
   }
 
+  public setZombieGroup(group: Phaser.Physics.Arcade.Group) {
+      this.zombieGroup = group;
+  }
+
   update(time: number, delta: number) {
     if (this.isDead) return;
 
@@ -184,14 +207,75 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
           this.weaponSystem.reload(time);
       }
       
+      // Slots
+      if (Phaser.Input.Keyboard.JustDown(this.keys.slot1)) this.weaponSystem.switchWeapon(0);
+      if (Phaser.Input.Keyboard.JustDown(this.keys.slot2)) this.weaponSystem.switchWeapon(1);
+      if (Phaser.Input.Keyboard.JustDown(this.keys.slot3)) this.weaponSystem.switchWeapon(2);
+      
       // Interaction (Hold supported)
       if (this.keys.interact.isDown) {
           this.tryInteract(delta);
+      }
+      
+      if (Phaser.Input.Keyboard.JustDown(this.keys.melee)) {
+          this.handleMelee(time);
       }
 
       // Continuous Fire
       if (this.scene.input.activePointer.isDown) {
           this.weaponSystem.trigger(time);
+      }
+  }
+
+  private handleMelee(time: number) {
+      if (time < this.lastMeleeTime + this.MELEE_COOLDOWN) return;
+      this.lastMeleeTime = time;
+      
+      // Visual Swipe
+      const graphics = this.scene.add.graphics();
+      graphics.setDepth(100);
+      graphics.lineStyle(4, 0xffffff, 0.8);
+      
+      const startAngle = this.rotation - Math.PI / 4;
+      const endAngle = this.rotation + Math.PI / 4;
+      
+      graphics.beginPath();
+      graphics.arc(this.x, this.y, 40, startAngle, endAngle, false);
+      graphics.strokePath();
+      
+      this.scene.tweens.add({
+          targets: graphics,
+          alpha: 0,
+          duration: 200,
+          onComplete: () => graphics.destroy()
+      });
+      
+      // Hit Logic
+      if (this.zombieGroup) {
+          const range = 60;
+          // Optimization: Check distance first
+          this.zombieGroup.children.each((child) => {
+               const z = child as Zombie;
+               if (!z.active) return true;
+               
+               const dist = Phaser.Math.Distance.Between(this.x, this.y, z.x, z.y);
+               if (dist < range) {
+                   // Check Cone
+                   const angleToZombie = Phaser.Math.Angle.Between(this.x, this.y, z.x, z.y);
+                   let diff = Phaser.Math.Angle.Wrap(angleToZombie - this.rotation);
+                   
+                   if (Math.abs(diff) < Math.PI / 3) { // 60 deg cone
+                       z.takeDamage(10);
+                       // Show Damage Number
+                       this.scene.events.emit('show-damage-text', { x: z.x, y: z.y - 20, amount: 10 });
+                       
+                       // Add points? User said "when a enemy is hit do 10 damage". 
+                       // Previous prompt said "add every hit adds 10 points when an enemy is hit with a bullet".
+                       // I will stick to damage only unless requested.
+                   }
+               }
+               return true;
+          });
       }
   }
 
@@ -323,7 +407,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       });
 
       if (closest) {
-          const text = (closest as IInteractable).getInteractionPrompt();
+          const text = (closest as IInteractable).getInteractionPrompt(this);
           // Always emit if valid, UI component handles deduping/display
           if (text) {
               EventBus.emit('show-interaction-prompt', text);
@@ -333,5 +417,27 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       
       // If no interactable or no text, hide
       EventBus.emit('hide-interaction-prompt');
+  }
+
+  public equipWeapon(weaponKey: string) {
+      this.weaponSystem.equip(weaponKey as any);
+  }
+
+  public addPoints(amount: number) {
+      const current = useGameStore.getState().playerStats.points;
+      useGameStore.getState().updatePlayerStats({ points: current + amount });
+  }
+
+  public spendPoints(amount: number): boolean {
+      const current = useGameStore.getState().playerStats.points;
+      if (current >= amount) {
+          useGameStore.getState().updatePlayerStats({ points: current - amount });
+          return true;
+      }
+      return false;
+  }
+
+  public get points(): number {
+      return useGameStore.getState().playerStats.points;
   }
 }

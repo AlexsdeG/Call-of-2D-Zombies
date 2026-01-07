@@ -11,6 +11,11 @@ export interface WeaponAttributes {
     bulletSpeed: number; // pixels per second
     critChance: number; // 0.0 to 1.0 (Probability of headshot)
     barrelLength: number; // Distance from player center to muzzle
+    
+    // New Implementation
+    type: 'SMALL' | 'LARGE';
+    category: 'PISTOL' | 'SHOTGUN' | 'RIFLE' | 'SNIPER' | 'LMG';
+    bulletCount: number; // Number of projectiles per shot
 }
 
 export interface WeaponState {

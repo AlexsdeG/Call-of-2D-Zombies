@@ -6,6 +6,8 @@ import { Door } from '../entities/Door';
 import { Barricade } from '../entities/Barricade';
 import { Spawner } from '../entities/Spawner';
 import { Player } from '../entities/Player';
+import { WallBuy } from '../entities/WallBuy';
+import { MysteryBox } from '../entities/MysteryBox';
 
 export class MapManager {
     private scene: Phaser.Scene;
@@ -75,9 +77,18 @@ export class MapManager {
         spawners: Spawner[],
         zombieGroup: Phaser.Physics.Arcade.Group,
         player: Player,
-        targetLayer?: Phaser.GameObjects.Layer
+        targetLayer?: Phaser.GameObjects.Layer,
+        wallBuyGroup?: Phaser.Physics.Arcade.StaticGroup,
+        mysteryBoxGroup?: Phaser.Physics.Arcade.StaticGroup
     ) {
         if (!mapData.objects || !this.pathfindingManager) return;
+        
+        // Ensure groups exist if passed as optional
+        if (wallBuyGroup && mysteryBoxGroup) {
+             // Logic proceeds
+        } else {
+            console.warn("Missing groups for economy items");
+        }
         
         mapData.objects.forEach(obj => {
              if (obj.type === 'door') {
@@ -140,10 +151,50 @@ export class MapManager {
              } else if (obj.type === 'spawn') {
                  // Move player to spawn
                  player.setPosition(obj.x, obj.y);
+             } else if (obj.type === 'wall_buy') {
+                 if (wallBuyGroup) {
+                     const weapon = this.getProperty(obj, 'weapon', 'PISTOL');
+                     const cost = this.getProperty(obj, 'cost', 500);
+                     
+                     const w = obj.width || 32;
+                     const h = obj.height || 32;
+                     
+                     const wb = new WallBuy(this.scene, obj.x, obj.y, w, h, weapon, cost);
+                     wallBuyGroup.add(wb);
+                 }
+             } else if (obj.type === 'mystery_box') {
+                 if (mysteryBoxGroup) {
+                    const rotation = this.getProperty(obj, 'rotation', 0);
+                    const isFirst = this.getProperty(obj, 'first', false);
+
+                    const box = new MysteryBox(this.scene, obj.x, obj.y, rotation, isFirst);
+                    mysteryBoxGroup.add(box);
+                 }
              }
         });
+        
+        // Init MysteryBox system (ensure one is active)
+        MysteryBox.initSystem();
     }
-
+    
+    // Helper to safely extract properties from Tiled Objects (Array or Dictionary)
+    private getProperty(obj: any, key: string, defaultValue: any): any {
+        if (!obj.properties) return defaultValue;
+        
+        // Case 1: Array of objects (Tiled JSON standard) -> [{name: "key", value: "val"}, ...]
+        if (Array.isArray(obj.properties)) {
+            const prop = obj.properties.find((p: any) => p.name === key);
+            return prop ? prop.value : defaultValue;
+        } 
+        
+        // Case 2: Dictionary/Object (Phaser often converts to this, or manual map data) -> { key: "val" }
+        if (obj.properties.hasOwnProperty(key)) {
+            return obj.properties[key];
+        }
+        
+        return defaultValue;
+    }
+    
     private populateLayer(layer: Phaser.Tilemaps.TilemapLayer, data: number[][]) {
         for (let y = 0; y < data.length; y++) {
             for (let x = 0; x < data[0].length; x++) {

@@ -24,6 +24,13 @@ export const CONTROLS = {
   // Mouse (Handled via Pointer events, defined here for reference)
   FIRE: 'POINTER_LEFT',
   AIM: 'POINTER_RIGHT',
+  
+  // Weapon Slots
+  SLOT_1: Phaser.Input.Keyboard.KeyCodes.ONE,
+  SLOT_2: Phaser.Input.Keyboard.KeyCodes.TWO,
+  SLOT_3: Phaser.Input.Keyboard.KeyCodes.THREE,
+  MELEE: Phaser.Input.Keyboard.KeyCodes.V,
+  
 } as const;
 
 export type ControlKey = keyof typeof CONTROLS;

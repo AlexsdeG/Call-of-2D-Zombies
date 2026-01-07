@@ -47,7 +47,7 @@ const MainMenu = () => {
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
       <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 3.1: Gamemodes</p>
+      <p className="text-gray-400 mb-8">Phase 3.2: Economy & Items</p>
       <div className="flex gap-4">
         <button 
           onClick={startGame}
@@ -327,14 +327,17 @@ const EditorOverlay = () => {
 
 
 const InteractionPrompt = () => {
-  const [text, setText] = useState<string | null>(null);
+  const [data, setData] = useState<{ text: string; enabled: boolean } | null>(null);
 
   useEffect(() => {
-    const show = (t: string) => {
-        // Prevent clearing immediately if same frame
-        setText(t);
+    const show = (payload: string | { text: string; enabled: boolean }) => {
+        if (typeof payload === 'string') {
+            setData({ text: payload, enabled: true });
+        } else {
+            setData(payload);
+        }
     };
-    const hide = () => setText(null);
+    const hide = () => setData(null);
 
     EventBus.on('show-interaction-prompt', show);
     EventBus.on('hide-interaction-prompt', hide);
@@ -344,16 +347,63 @@ const InteractionPrompt = () => {
     };
   }, []);
 
-  if (!text) return null;
+  if (!data) return null;
 
   return (
     <div className="absolute top-[65%] left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-40 animate-in fade-in zoom-in duration-200">
-       <div className="bg-black/50 text-white/90 text-sm font-medium px-3 py-1.5 rounded-full shadow-sm backdrop-blur-[2px] border border-white/10 tracking-wide flex items-center gap-2">
-         <span className="bg-white/20 text-white px-1.5 rounded text-[10px] font-bold">F</span>
-         {text}
+       <div className={`
+          text-sm font-medium px-3 py-1.5 rounded-full shadow-sm backdrop-blur-[2px] border tracking-wide flex items-center gap-2
+          ${data.enabled 
+            ? 'bg-black/50 text-white/90 border-white/10' 
+            : 'bg-black/30 text-gray-400/80 border-gray-700/50 grayscale'}
+       `}>
+         <span className={`px-1.5 rounded text-[10px] font-bold ${data.enabled ? 'bg-white/20 text-white' : 'bg-gray-700 text-gray-400'}`}>F</span>
+         {data.text}
        </div>
     </div>
   );
+};
+
+const WeaponNameToast = () => {
+    const [name, setName] = useState<string | null>(null);
+    const [visible, setVisible] = useState(false);
+    const fadeTimer = useRef<NodeJS.Timeout | null>(null);
+    const hideTimer = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        const handleSwitch = (weaponName: string) => {
+            setName(weaponName);
+            setVisible(true);
+
+            // Clear existing timers
+            if (fadeTimer.current) clearTimeout(fadeTimer.current);
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+
+            // Hide after 2 seconds
+            hideTimer.current = setTimeout(() => {
+                setVisible(false);
+            }, 2000);
+        };
+
+        EventBus.on('weapon-switch', handleSwitch);
+        return () => {
+            EventBus.off('weapon-switch', handleSwitch);
+            if (fadeTimer.current) clearTimeout(fadeTimer.current);
+            if (hideTimer.current) clearTimeout(hideTimer.current);
+        };
+    }, []);
+
+    return (
+        <div className={`
+            absolute bottom-36 right-6 pointer-events-none z-30 transition-opacity duration-1000 ease-in-out
+            ${visible ? 'opacity-100' : 'opacity-0'}
+        `}>
+            <div className="text-white font-mono text-2xl tracking-wider drop-shadow-md text-right">
+                {name}
+            </div>
+            <div className="w-full h-0.5 bg-gradient-to-r from-transparent to-white/50 mt-1"></div>
+        </div>
+    );
 };
 
 // --- MAIN APP ---
@@ -446,6 +496,7 @@ const App: React.FC = () => {
            {gameState === GameState.GAME_OVER && <GameOverMenu />}
            {gameState === GameState.EDITOR && <EditorOverlay />}
            {gameState === GameState.GAME && <InteractionPrompt />}
+           {gameState === GameState.GAME && <WeaponNameToast />}
         </div>
       </div>
     </div>

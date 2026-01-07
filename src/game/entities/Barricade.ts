@@ -120,7 +120,7 @@ export class Barricade extends Phaser.Physics.Arcade.Sprite implements IInteract
         }
     }
 
-    getInteractionPrompt(): string {
+    getInteractionPrompt(player: Player): string {
         return this.panels < this.MAX_PANELS ? "Hold F to Repair" : "";
     }
 

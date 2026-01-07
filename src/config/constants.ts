@@ -66,6 +66,9 @@ export const WEAPON_DEFS = {
         bulletSpeed: 1600,
         critChance: 0.1, // 10% chance
         barrelLength: 30,
+        type: 'SMALL',
+        category: 'PISTOL',
+        bulletCount: 1,
     },
     RIFLE: {
         name: 'AK-47',
@@ -80,23 +83,60 @@ export const WEAPON_DEFS = {
         bulletSpeed: 2200, // Faster bullets
         critChance: 0.05, // Lower crit chance due to spray
         barrelLength: 45,
+        type: 'LARGE',
+        category: 'RIFLE',
+        bulletCount: 1,
+    },
+    SHOTGUN: {
+        name: 'Olympia',
+        damage: 15, // Per pellet
+        fireRate: 800,
+        magSize: 2,
+        reloadTime: 3000,
+        minRange: 50,
+        range: 400,
+        spread: 15,
+        recoil: 15,
+        bulletSpeed: 1600,
+        critChance: 0.0,
+        barrelLength: 40,
+        type: 'LARGE',
+        category: 'SHOTGUN',
+        bulletCount: 8,
+    },
+    SNIPER: {
+        name: 'L96A1',
+        damage: 150,
+        fireRate: 1500,
+        magSize: 5,
+        reloadTime: 3500,
+        minRange: 400,
+        range: 1500,
+        spread: 0.1,
+        recoil: 20,
+        bulletSpeed: 3000,
+        critChance: 0.5,
+        barrelLength: 55,
+        type: 'LARGE',
+        category: 'SNIPER',
+        bulletCount: 1,
     }
 } as const;
 
 export const UI = {
-  COLORS: {
-    HEALTH: 0xd9534f, // Phaser Hex Red
-    STAMINA: 0x5cb85c, // Phaser Hex Green
-    AMMO: 0xf0ad4e,    // Phaser Hex Orange
-    TEXT_MAIN: '#ffffff',
-    TEXT_MUTED: '#888888',
-  },
-  FONTS: {
-    MAIN: 'monospace',
-  }
-} as const;
-
-export const DEBUG = {
-  SHOW_COLLIDERS: (import.meta as any).env?.DEV ?? false,
-  SHOW_PATHFINDING: false,
-} as const;
+    COLORS: {
+      HEALTH: 0xd9534f, // Phaser Hex Red
+      STAMINA: 0x5cb85c, // Phaser Hex Green
+      AMMO: 0xf0ad4e,    // Phaser Hex Orange
+      TEXT_MAIN: '#ffffff',
+      TEXT_MUTED: '#888888',
+    },
+    FONTS: {
+      MAIN: 'monospace',
+    }
+  } as const;
+  
+  export const DEBUG = {
+    SHOW_COLLIDERS: (import.meta as any).env?.DEV ?? false,
+    SHOW_PATHFINDING: false,
+  } as const;

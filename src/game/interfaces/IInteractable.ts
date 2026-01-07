@@ -15,7 +15,7 @@ export interface IInteractable extends Phaser.GameObjects.GameObject {
     /**
      * Returns a text prompt to display on UI (e.g., "Press F to Buy [500]")
      */
-    getInteractionPrompt(): string;
+    getInteractionPrompt(player: Player): { text: string; enabled: boolean } | string;
     
     /**
      * Can this currently be interacted with?

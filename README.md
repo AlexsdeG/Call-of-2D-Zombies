@@ -13,3 +13,19 @@ The game uses a folder-based sound architecture. Place audio files in `public/so
 | **Player** | `step.mp3` | `/sounds/player/step.mp3` | Footsteps |
 
 *Note: The `SoundManager` handles missing files gracefully. If a specific weapon sound is missing, it attempts to play from `/sounds/weapons/DEFAULT/`.*
+
+## Keybinds
+
+| Key | Action |
+|-----|--------|
+| **W, A, S, D** | Move Character |
+| **Shift** | Sprint |
+| **Mouse** | Aim |
+| **Left Click** | Fire Weapon |
+| **R** | Reload |
+| **F** | Interact (Buy, Open Door, Repair) |
+| **V** | Melee Attack |
+| **1, 2, 3** | Equip Weapon Slot |
+| **Mouse Wheel** | Cycle Weapons |
+| **ESC** | Pause |
+| **TAB** | Inventory |

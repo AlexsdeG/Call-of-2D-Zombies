@@ -93,7 +93,7 @@
 *   **Step 3.3: Perks & Upgrades**
     *   Create `PerkMachine` class (Juggernog, Speed Cola, etc.).
     *   Implement `PackAPunch`: UI to upgrade held weapon (changes stats, skin, projectile color).
-    *   Implement `PowerUps`: Zombies drop icons (Nuke, Max Ammo) that apply global effects.
+    *   Implement `PowerUps`: Zombies drop icons (Nuke, Max Ammo, 2x, insta kill, hammer (hammer makes all barricades max panels)) that apply global effects.
 
 ---
 

@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.17] - Phase 3 Step 3.2 (Economy & Items)
+### Added
+- **Economy System**:
+    - `src/game/entities/WallBuy.ts`: Interactable wall weapon purchase.
+    - `src/game/entities/MysteryBox.ts`: Random weapon chest with moving logic (Teddy Bear).
+    - `src/game/constants.ts`: Added `SHOTGUN` and `SNIPER` weapon definitions.
+- **Player Updates**:
+    - Points system integration (+10 hit, +100 kill).
+    - `equipWeapon(key)` support in `Player.ts`.
+- **Map**:
+    - Updated `defaultMap.ts` with WallBuys (Spawn) and MysteryBoxes (All 3 rooms).
+    - Updated `MapManager.ts` to parse economy objects.
+- **Assets**:
+    - Added procedural textures for `wallbuy` and `mysterybox` in `BootScene`.
+- **Tests**:
+    - `src/tests/economyMapTest.ts`: Verification script for economy map objects.
+
 ## [0.1.16] - Phase 3 Step 3.1 (Wave Manager & Director AI)
 ### Added
 - **Systems**:
