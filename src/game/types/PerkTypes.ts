@@ -10,5 +10,6 @@ export enum PowerUpType {
     NUKE = 'NUKE',
     INSTA_KILL = 'INSTA_KILL',
     DOUBLE_POINTS = 'DOUBLE_POINTS',
-    CARPENTER = 'CARPENTER'
+    CARPENTER = 'CARPENTER',
+    FIRE_SALE = 'FIRE_SALE' // New Super Sale
 }

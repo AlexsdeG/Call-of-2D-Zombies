@@ -1,3 +1,4 @@
+```
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -5,15 +6,35 @@ All notable changes to this project will be documented in this file.
 ## [0.1.18] - 2025-01-07
 
 ### Added
+- **Power Ups System**:
+  - Drops from zombies (Max Ammo, Nuke, Insta-Kill, Double Points, Carpenter).
+  - Floating 3D-style icons with labels.
+  - Active Power-Up UI with timers and blinking effects.
+  - Global effects (Nuke kills all, Carpenter fixes barriers).
+- **Perk System**:
+  - Juggernog (Health), Speed Cola (Reload), Double Tap (Fire Rate), Stamin-Up (Speed).
+  - Perk Machines placed on map.
+- **Pack-a-Punch**:
+  - Machine for weapon upgrades.
+  - Visual upgrades (Green muzzle flash, "Upgraded" name).
+- **Economy**:
+  - Point system (Hit, Kill, Repair).
+  - Wall Buys and Mystery Box interactions.
+- **UI Enhancements**:
+  - Active PowerUps HUD.
+  - Round Counter synced with Game Store.
+  - Interaction Prompts.
 
-- **Perk Machines**: Juggernog, Speed Cola, Double Tap, Stamin-Up machines added to map.
-- **Pack-a-Punch**: Weapon upgrade machine added.
-- **Power Ups**: Max Ammo, Nuke, Insta-Kill, Double Points, Carpenter now drop from zombies.
+### Fixed
+- **Critical Fixes**:
+  - Fixed "Black Screen" issue when resuming from pause (physics synchronization).
+  - Fixed Round Counter resetting to 1 on resume.
+  - Fixed Mystery Box crash (`setFrame` error).
+  - Fixed Carpenter and Nuke logic not triggering globally.
+- **WeaponSystem**: Fixed logic for weapon upgrades (ammo state vs attributes).
 - **Map Integration**: Default map updated with Perk Machines and PaP locations.
 - **MapManager**: Updated to parse `perk_machine` and `pack_a_punch` objects.
 - **Test Map**: Added `src/tests/perkMapTest.ts` for isolated testing.
-
-### Fixed
 
 - **WeaponSystem**: Fixed logic for weapon upgrades (ammo state vs attributes).
 

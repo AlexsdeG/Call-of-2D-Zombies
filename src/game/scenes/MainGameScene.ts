@@ -125,6 +125,22 @@ export class MainGameScene extends Phaser.Scene {
     EventBus.on('exit-game', this.onExitGame);
     EventBus.on('restart-game', this.onRestartGame);
     EventBus.on('game-over', this.onGameOver);
+
+    // Pause/Resume Handlers to prevent Black Screen / Loss of Context
+    EventBus.on('pause-game', () => {
+        if (!this.scene.isActive()) return;
+        this.physics.pause();
+        // this.scene.pause(); // Do NOT pause the scene, just physics. Pausing scene stops updates which might cause black screen on resume if not handled perfectly.
+        // Instead, we just pause physics and maybe inputs.
+        this.input.setDefaultCursor('default');
+    });
+
+    EventBus.on('resume-game', () => {
+        if (!this.scene.isActive()) return;
+        this.physics.resume();
+        // this.scene.resume();
+        this.input.setDefaultCursor('none');
+    });
     
     // PowerUp Listener
     EventBus.on('spawn-powerup', (data: {x: number, y: number, type: PowerUpType}) => {
@@ -163,6 +179,36 @@ export class MainGameScene extends Phaser.Scene {
         
         this.player.addPoints(400); 
         EventBus.emit('show-notification', "Kaboom! Nuke!");
+    });
+
+    EventBus.on('trigger-firesale', () => {
+        if (!this.scene.isActive()) return;
+        MysteryBox.startFireSale(this);
+        EventBus.emit('show-notification', "FIRE SALE ACTIVE!");
+    });
+
+    // --- DEBUG: Spawn PowerUps for Testing ---
+    // User requested spawning them for the debug map to test at tile 12,12
+    this.time.delayedCall(2000, () => {
+        const debugX = 12 * 32; // Tile 12 -> 384
+        const debugY = 12 * 32; // Tile 12 -> 384
+        
+        const types = [
+            PowerUpType.MAX_AMMO, 
+            PowerUpType.NUKE, 
+            PowerUpType.INSTA_KILL, 
+            PowerUpType.DOUBLE_POINTS, 
+            PowerUpType.CARPENTER,
+            PowerUpType.FIRE_SALE
+        ];
+        
+        types.forEach((type, index) => {
+            // Spacing them out horizontally by 40px
+            const pu = new PowerUp(this, debugX + (index * 40), debugY, type);
+            this.powerUpGroup.add(pu);
+        });
+        
+        console.log("DEBUG: Spawning PowerUps at", debugX, debugY);
     });
 
     // 0. Setup Physics Groups
@@ -335,7 +381,11 @@ export class MainGameScene extends Phaser.Scene {
       EventBus.off('weapon-switch');
       EventBus.off('spawn-powerup');
       EventBus.off('trigger-carpenter');
+      EventBus.off('trigger-carpenter');
       EventBus.off('trigger-nuke');
+      EventBus.off('trigger-firesale');
+      EventBus.off('pause-game');
+      EventBus.off('resume-game');
       
       // Stop all Timers and Tweens to prevent "accessing property of undefined" errors
       this.time.removeAllEvents();

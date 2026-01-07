@@ -41,10 +41,38 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
             ease: 'Linear'
         });
 
-        // Expiration
-        scene.time.delayedCall(30000, () => {
+        // Expiration Logic
+        // 1. Total duration 20s
+        // 2. Start blinking at 15s (5s remaining)
+        // 3. Destroy at 20s
+        
+        const LIFETIME = 20000;
+        const BLINK_START = 15000;
+        
+        // Blink Trigger
+        scene.time.delayedCall(BLINK_START, () => {
+             if (!this.active) return;
+             // Blinking Tween
+             scene.tweens.add({
+                 targets: [this, this.label],
+                 alpha: 0.2, // Fade out significantly
+                 duration: 200,
+                 yoyo: true,
+                 repeat: -1
+             });
+        });
+        
+        // Disable/Destroy Trigger
+        scene.time.delayedCall(LIFETIME, () => {
              if (this.active) {
-                 this.destroy();
+                 // Disappear Effect (Shrink)
+                 scene.tweens.add({
+                     targets: [this, this.label],
+                     scale: 0,
+                     alpha: 0,
+                     duration: 500,
+                     onComplete: () => this.destroy()
+                 });
              }
         });
 
@@ -60,16 +88,7 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
         this.label.setDepth(21);
     }
     
-    private getLabelText(type: PowerUpType): string {
-        switch(type) {
-            case PowerUpType.MAX_AMMO: return "MAX AMMO";
-            case PowerUpType.NUKE: return "NUKE";
-            case PowerUpType.INSTA_KILL: return "INSTA-KILL";
-            case PowerUpType.DOUBLE_POINTS: return "DOUBLE POINTS";
-            case PowerUpType.CARPENTER: return "CARPENTER";
-            default: return "";
-        }
-    }
+    // Removed duplicate getLabelText
 
     preUpdate(time: number, delta: number) {
         super.preUpdate(time, delta);
@@ -77,6 +96,11 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
             this.label.setPosition(this.x, this.y - 25);
             this.label.setAlpha(this.alpha); // Fade out with sprite
         }
+        
+        // Timer Logic
+        // We use Scene Timer for destruction, but we can check elapsed for visual effects manually 
+        // OR rely on a separate timer callback for the blink start.
+        // Let's use the delayedCall we already have, but optimize it.
     }
     
     destroy(fromScene?: boolean) {
@@ -91,7 +115,20 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
             case PowerUpType.INSTA_KILL: return 0xff0000; // Red
             case PowerUpType.DOUBLE_POINTS: return 0x0000ff; // Blue
             case PowerUpType.CARPENTER: return 0x808080; // Gray
+            case PowerUpType.FIRE_SALE: return 0xffaaaa; // Light Red/Pink
             default: return 0xffffff;
+        }
+    }
+    
+    private getLabelText(type: PowerUpType): string {
+        switch(type) {
+            case PowerUpType.MAX_AMMO: return "MAX AMMO";
+            case PowerUpType.NUKE: return "NUKE";
+            case PowerUpType.INSTA_KILL: return "INSTA-KILL";
+            case PowerUpType.DOUBLE_POINTS: return "DOUBLE POINTS";
+            case PowerUpType.CARPENTER: return "CARPENTER";
+            case PowerUpType.FIRE_SALE: return "FIRE SALE";
+            default: return "";
         }
     }
 
@@ -104,13 +141,28 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
             case PowerUpType.CARPENTER:
                 EventBus.emit('trigger-carpenter');
                 break;
+            case PowerUpType.FIRE_SALE:
+                EventBus.emit('trigger-firesale');
+                // Give visual timer to player as well
+                player.activatePowerUp(PowerUpType.FIRE_SALE, 60000);
+                break;
             default:
                 // Timed Logic
                 player.activatePowerUp(this.powerUpType, this.duration);
                 break;
         }
 
-         EventBus.emit('show-notification', `Pick up ${this.powerUpType}!`);
-         this.destroy();
+         EventBus.emit('show-notification', `Pick up ${this.getLabelText(this.powerUpType)}!`);
+         
+         // Collect Effect (Pop)
+         this.scene.tweens.add({
+             targets: [this, this.label],
+             scale: 1.5,
+             alpha: 0,
+             duration: 200,
+             onComplete: () => {
+                 this.destroy();
+             }
+         });
     }
 }

@@ -158,7 +158,7 @@ const DebugOverlay = () => {
   return (
     <div className="absolute top-0 right-0 p-2 bg-black/50 text-green-400 font-mono text-xs pointer-events-auto z-50 flex flex-col items-end gap-2">
       <div>FPS: {fps}</div>
-      <div>VER: 0.1.16</div>
+      <div>VER: 0.1.18</div>
       <button 
         onClick={runTests}
         className="px-2 py-1 bg-blue-900/50 hover:bg-blue-800 text-blue-200 border border-blue-700 rounded text-[10px]"
@@ -171,8 +171,8 @@ const DebugOverlay = () => {
 
 const HUD = () => {
   const points = useGameStore((state) => state.playerStats.points);
+  const currentRound = useGameStore((state) => state.currentRound);
   const [isReloading, setIsReloading] = useState(false);
-  const [wave, setWave] = useState(1);
   const [showWaveClear, setShowWaveClear] = useState(false);
   
   // Refs for direct DOM manipulation (Performance)
@@ -219,19 +219,13 @@ const HUD = () => {
        }
     };
     
-    const handleRoundStart = (round: number) => {
-        setWave(round);
-        setShowWaveClear(false);
-    };
-    
-    // Optional: Flash "Wave Complete"
     const handleRoundComplete = () => {
          setShowWaveClear(true);
          setTimeout(() => setShowWaveClear(false), 3000);
     };
 
     EventBus.on('player-stats-update', handleStatsUpdate);
-    EventBus.on('round-start', handleRoundStart);
+    // EventBus.on('round-start', handleRoundStart); // Removed: Store handles round number
     EventBus.on('round-complete', handleRoundComplete);
 
     const initial = useGameStore.getState().playerStats;
@@ -244,7 +238,7 @@ const HUD = () => {
 
     return () => {
       EventBus.off('player-stats-update', handleStatsUpdate);
-      EventBus.off('round-start', handleRoundStart);
+      // EventBus.off('round-start', handleRoundStart);
       EventBus.off('round-complete', handleRoundComplete);
     };
   }, []);
@@ -266,7 +260,7 @@ const HUD = () => {
               )}
           
               <div className="text-red-600 font-extrabold text-5xl tracking-tighter opacity-80 drop-shadow-xl animate-in slide-in-from-right duration-700">
-                  ROUND <span className="text-white text-6xl">{wave}</span>
+                  ROUND <span className="text-white text-6xl">{currentRound}</span>
               </div>
           </div>
 

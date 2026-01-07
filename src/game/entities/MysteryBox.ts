@@ -122,25 +122,79 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         this.updateVisuals();
     }
 
+    private static isFireSale: boolean = false;
+    private static fireSaleTimer?: Phaser.Time.TimerEvent;
+
+    public static startFireSale(scene: Phaser.Scene) {
+        if (MysteryBox.isFireSale) {
+            // Reset existing timer if active
+            if (MysteryBox.fireSaleTimer) {
+                MysteryBox.fireSaleTimer.remove(false);
+                // We will create a new one below
+            }
+        }
+
+        MysteryBox.isFireSale = true;
+        
+        // Activate ALL boxes
+        MysteryBox.allBoxes.forEach(box => box.setActivity(true));
+        
+        // 60s Timer
+        MysteryBox.fireSaleTimer = scene.time.delayedCall(60000, () => {
+             MysteryBox.endFireSale();
+        });
+    }
+
+    public static endFireSale() {
+        MysteryBox.isFireSale = false;
+        // Revert to single active box
+        // We need to keep the logic consistent: only one box should be active.
+        MysteryBox.updateAllBoxes();
+    }
+
     private updateVisuals() {
-        if (this.isActiveBox) {
+        if (this.isActiveBox || MysteryBox.isFireSale) {
             this.setTint(0xffffff); // Normal
-            this.lidSprite.setFrame(0); // If valid? Or just set Y
             // Reset position to closed state
             this.resetLidPosition();
+            
+            // Fire Sale Visual?
+            if (MysteryBox.isFireSale) {
+                // maybe pulse or different tint?
+                // this.setTint(0xffdddd); 
+            }
         } else {
             this.setTint(0x555555); // Dark/Inactive
         }
     }
     
     private resetLidPosition() {
+        // Ensure lid sprite exists before setting position
+        if (!this.lidSprite) return;
+        
         const rad = Phaser.Math.DegToRad(this.angle);
         const closedOffset = new Phaser.Math.Vector2(0, -10).rotate(rad);
         this.lidSprite.setPosition(this.x + closedOffset.x, this.y + closedOffset.y);
     }
+    
+    private getCost(): number {
+        return MysteryBox.isFireSale ? 10 : this.cost; 
+    }
+    
+    // ...
+
+    private lastInteractionTime: number = 0;
 
     public interact(player: Player, delta?: number) {
-        if (!this.isActiveBox) return; // "Teddy bear moved"
+        // Debounce Interaction (Prevent accidental double buy/pickup)
+        const now = this.scene.time.now;
+        if (now < this.lastInteractionTime + 500) return; // 500ms debounce
+        this.lastInteractionTime = now;
+
+        // Allow interaction if active box OR fire sale is on
+        const canUse = this.isActiveBox || MysteryBox.isFireSale;
+        
+        if (!canUse) return; // "Teddy bear moved" or inactive
         
         if (this.isRolling) return; // Busy
         
@@ -151,13 +205,14 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         }
 
         // BUY PHASE
-        if (player.spendPoints(this.cost)) {
+        const currentCost = this.getCost();
+        if (player.spendPoints(currentCost)) {
             this.startRoll(player);
         } else {
             SoundManager.play(this.scene, 'click', { volume: 0.5 });
         }
     }
-
+    
     private startRoll(player: Player) {
         this.isRolling = true;
         
@@ -201,6 +256,9 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         this.isRolling = false;
         
         // Teddy Bear Check (If multiple boxes exist)
+        // In Fire Sale, typically Teddy Bear is disabled or behaves differently? 
+        // For simplicity, let's keep normal logic but maybe reduce chance in Fire Sale?
+        // User didn't specify, so normal logic.
         if (MysteryBox.allBoxes.length > 1 && Math.random() < 0.2) {
              // MOVE BOX
              this.handleTeddyBear(player);
@@ -252,18 +310,22 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         this.isTeddyBear = true;
         
         this.scene.time.delayedCall(1000, () => {
-            // Find new index
+             // Pass turn to next box logic
+             // If Fire Sale is active, this is tricky. 
+             // Ideally Fire Sale ends or we just move the "real" active box index.
+             // Let's just change the activeIndex.
             let newIndex = MysteryBox.activeBoxIndex;
             while (newIndex === MysteryBox.activeBoxIndex) {
                 newIndex = Phaser.Math.Between(0, MysteryBox.allBoxes.length - 1);
             }
             
+            // If Fire Sale, this won't change visibility immediately for others, 
+            // but will set the state for when Fire Sale ends.
             MysteryBox.setActiveBox(newIndex);
             this.resetToIdle();
         });
     }
     
-    // ... equipReward ...
     private equipReward(player: Player) {
         if (this.selectedWeaponKey) {
             // Max Ammo Check
@@ -300,7 +362,9 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
     }
 
     public getInteractionPrompt(player: Player): { text: string; enabled: boolean } | string {
-        if (!this.isActiveBox) {
+        const canUse = this.isActiveBox || MysteryBox.isFireSale;
+        
+        if (!canUse) {
             // Technically shouldn't be called if not closest/canInteract, but for robust UI
             return { text: 'Box Moved', enabled: false };
         }
@@ -318,22 +382,22 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
             return { text: `Press F to take ${def.name}`, enabled: true };
         }
         
-        const canAfford = player.points >= this.cost;
+        const currentCost = this.getCost();
+        const canAfford = player.points >= currentCost;
         return { 
-            text: `Press F for Mystery Box [${this.cost}]`, 
+            text: `Press F for Mystery Box [${currentCost}]`, 
             enabled: canAfford 
         };
     }
 
     public canInteract(player: Player): boolean {
-        // Always "can interact" (be candidate for prompt) if active and not rolling
-        // unless presenting (pickup)
-        // Logic handles affordance check inside getInteractionPrompt (UI) and interact (Action)
-        if (!this.isActiveBox) return false;
+        // Check activity or fire sale
+        const canUse = this.isActiveBox || MysteryBox.isFireSale;
+        
+        if (!canUse) return false;
+        
         if (this.isRolling) return false; // Hide prompt while rolling
-        if (this.isTeddyBear) return false; // Hide prompt (or show disabled: user wanted disabled prompt?)
-        // User said: "if teddy bear show teddy bear text prompt... use text prompt disabled"
-        // So we MUST return true here to let Player.ts ask for prompt.
+        if (this.isTeddyBear) return false; // Check comments above
         if (this.isTeddyBear) return true;
         
         return true; 

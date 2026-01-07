@@ -4,6 +4,7 @@ import { WaveManager } from '../systems/WaveManager';
 import { DirectorAI } from '../systems/DirectorAI';
 import { Player } from '../entities/Player';
 import { Spawner } from '../entities/Spawner';
+import { useGameStore } from '../../store/useGameStore';
 
 export class SurvivalMode implements IGameMode {
     private waveManager: WaveManager;
@@ -27,6 +28,15 @@ export class SurvivalMode implements IGameMode {
     public update(time: number, delta: number) {
         this.directorAI.update(time, delta);
         this.waveManager.update(time, delta);
+        
+        // Sync Round to Store (Optimized to only set if changed?)
+        // The store selector is optimized, but calling set state every frame is bad.
+        // We should move this to an event listener in Survival Mode if possible.
+        // But for now, let's just do a simple check.
+        const r = this.waveManager.getCurrentRound();
+        if (useGameStore.getState().currentRound !== r) {
+             useGameStore.getState().setCurrentRound(r);
+        }
     }
     
     public shutdown() {

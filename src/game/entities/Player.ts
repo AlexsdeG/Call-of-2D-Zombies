@@ -443,9 +443,18 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   public addPoints(amount: number) {
-      const current = useGameStore.getState().playerStats.points;
-      useGameStore.getState().updatePlayerStats({ points: current + amount });
-  }
+    let finalAmount = amount;
+    
+    // Check for Double Points
+    if (this.activePowerups.has(PowerUpType.DOUBLE_POINTS)) {
+        finalAmount *= 2;
+    }
+
+    const current = useGameStore.getState().playerStats.points;
+    useGameStore.getState().updatePlayerStats({ points: current + finalAmount });
+    
+    // Optional: Floating text for points?
+}
 
   public spendPoints(amount: number): boolean {
       const current = useGameStore.getState().playerStats.points;
