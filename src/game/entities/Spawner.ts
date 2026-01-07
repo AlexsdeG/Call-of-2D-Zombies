@@ -9,13 +9,12 @@ export class Spawner {
     private x: number;
     private y: number;
     private zoneId: number;
-    private isActive: boolean;
+    private _isActive: boolean;
+
+    public get isActive(): boolean {
+        return this._isActive;
+    }
     
-    // Increased to 10 seconds
-    private spawnRate: number = 10000;
-    private lastSpawnTime: number = 0;
-    
-    private zombieGroup: Phaser.Physics.Arcade.Group;
     private barricadeGroup: Phaser.Physics.Arcade.StaticGroup;
     private player: Player;
     private pathfindingManager: PathfindingManager;
@@ -46,27 +45,22 @@ export class Spawner {
         this.targetLayer = targetLayer;
         
         // Zone 0 is active by default
-        this.isActive = (zoneId === 0);
+        this._isActive = (zoneId === 0);
 
         // Listen for activation
         EventBus.on('activate-zone', (id: number) => {
             if (id === this.zoneId) {
-                this.isActive = true;
+                this._isActive = true;
             }
         });
     }
 
     public update(time: number) {
-        if (!this.isActive || !this.scene.sys.isActive()) return;
-
-        if (time > this.lastSpawnTime + this.spawnRate) {
-            this.spawn();
-            this.lastSpawnTime = time;
-        }
+        // Controlled by WaveManager now
     }
 
-    private spawn() {
-        if (!this.scene.sys.isActive()) return;
+    public spawn(group: Phaser.Physics.Arcade.Group) {
+        if (!this.isActive || !this.scene.sys.isActive()) return;
         
         const zombie = new Zombie(
             this.scene, 
@@ -78,6 +72,6 @@ export class Spawner {
             this.wallLayer,
             this.targetLayer
         );
-        this.zombieGroup.add(zombie);
+        group.add(zombie);
     }
 }

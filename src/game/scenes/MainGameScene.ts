@@ -12,12 +12,16 @@ import { Zombie } from '../entities/Zombie';
 import { Barricade } from '../entities/Barricade';
 import { Door } from '../entities/Door';
 import { Spawner } from '../entities/Spawner';
+import { useGameStore } from '../../store/useGameStore';
+import { IGameMode } from '../gamemodes/IGameMode';
+import { SurvivalMode } from '../gamemodes/SurvivalMode';
 
 export class MainGameScene extends Phaser.Scene {
   private player!: Player;
   private visionManager!: VisionManager;
   private mapManager!: MapManager;
   private pathfindingManager!: PathfindingManager;
+  private gameMode!: IGameMode;
   
   private crates: Phaser.GameObjects.Sprite[] = [];
   private targets: Phaser.GameObjects.Sprite[] = []; 
@@ -73,6 +77,18 @@ export class MainGameScene extends Phaser.Scene {
         this.isGameOver = true;
         this.physics.pause();
         this.input.setDefaultCursor('default');
+        
+        // Update Game Over Stats in Store
+        if (this.gameMode) {
+             const roundsSurvived = this.gameMode.getCurrentRound();
+             const message = this.gameMode.getGameOverMessage ? this.gameMode.getGameOverMessage() : "GAME OVER";
+             
+             // Access store directly (since we are outside React)
+             useGameStore.getState().setGameOverStats({
+                 roundsSurvived,
+                 message
+             });
+        }
     };
   }
 
@@ -149,6 +165,13 @@ export class MainGameScene extends Phaser.Scene {
     
     this.doorGroup.children.each(d => { this.interactableGroup.add(d); return true; });
     this.barricadeGroup.children.each(b => { this.interactableGroup.add(b); return true; });
+
+
+
+// ... in create() ...
+    // 4. Game Mode
+    this.gameMode = new SurvivalMode(this, this.player, this.spawners, this.zombieGroup);
+    this.gameMode.init();
 
     // 3. Bake Pathfinding
     if (this.mapManager['map']) {
@@ -251,8 +274,13 @@ export class MainGameScene extends Phaser.Scene {
       if (this.visionManager) this.visionManager.update(this.player);
       this.updateCrosshair();
     }
+
     
-    // Update Spawners
+    // Update Systems
+    // Update Game Mode
+    if (this.gameMode) this.gameMode.update(time, delta);
+    
+    // Update Spawners (mainly for activation status if needed)
     this.spawners.forEach(s => s.update(time));
   }
 

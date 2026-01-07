@@ -11,7 +11,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private keys: Record<string, Phaser.Input.Keyboard.Key> = {};
   private currentSpeed: number = PLAYER.DEFAULT_SPEED;
   private stamina: number = PLAYER.MAX_STAMINA;
-  private health: number = PLAYER.MAX_HEALTH;
+  private _health: number = PLAYER.MAX_HEALTH;
+  private _maxHealth: number = PLAYER.MAX_HEALTH;
   public isDead: boolean = false;
 
   // Systems
@@ -29,6 +30,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private interactables: Phaser.GameObjects.Group | null = null;
 
   // Sync timers
+  public get health(): number {
+      return this._health;
+  }
+
+  public set health(value: number) {
+      this._health = value;
+  }
+
+  public get maxHealth(): number {
+      return this._maxHealth;
+  }
+
+  public get isValid(): boolean {
+      return this.scene && this.scene.sys.isActive() && this.body !== undefined;
+  }
   private lastStoreSync: number = 0;
   private lastUiSync: number = 0;
   private readonly STORE_SYNC_INTERVAL = 1000;
@@ -71,7 +87,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     // Mouse Input for Shooting
     this.onPointerDown = (pointer: Phaser.Input.Pointer) => {
         // Safety checks for destroyed object
-        if (!this.scene || !this.active) return;
+        if (!this.scene || !this.isValid) return;
         
         if (this.scene.scene.isPaused('MainGameScene') || this.isDead) return;
         
@@ -107,14 +123,14 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   public takeDamage(amount: number) {
-      if (!this.scene || !this.active || this.isDead) return;
+      if (!this.scene || !this.isValid || this.isDead) return;
 
       this.health = Math.max(0, this.health - amount);
       this.setTint(0xff0000);
       
       // Use efficient delayed call with safety
       this.scene.time.delayedCall(200, () => {
-          if(this.active && !this.isDead) this.clearTint();
+          if(this.isValid && !this.isDead) this.clearTint();
       });
       
       // Update UI immediately

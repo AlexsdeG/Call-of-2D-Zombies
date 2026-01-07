@@ -47,7 +47,7 @@ const MainMenu = () => {
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
       <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 2.3: Interactables</p>
+      <p className="text-gray-400 mb-8">Phase 3.1: Gamemodes</p>
       <div className="flex gap-4">
         <button 
           onClick={startGame}
@@ -69,7 +69,8 @@ const MainMenu = () => {
 const GameOverMenu = () => {
     const setGameState = useGameStore((state) => state.setGameState);
     const resetPlayerStats = useGameStore((state) => state.resetPlayerStats);
-    
+    const { roundsSurvived, message } = useGameStore((state) => state.gameOverStats);
+
     const restart = () => {
         resetPlayerStats();
         // Force restart logic is handled in App effect
@@ -83,7 +84,14 @@ const GameOverMenu = () => {
     return (
         <div className="absolute inset-0 bg-red-900/40 flex flex-col items-center justify-center text-white z-40 pointer-events-auto backdrop-blur-sm animate-in fade-in zoom-in duration-300">
             <h1 className="text-8xl font-black mb-2 text-red-600 tracking-tighter drop-shadow-lg">GAME OVER</h1>
-            <p className="text-xl mb-10 text-red-200">You survived... until you didn't.</p>
+            <p className="text-xl mb-6 text-red-200">{message}</p>
+            
+            {/* Optional Round Stats */}
+            {roundsSurvived > 0 && (
+                <div className="mb-8 text-2xl font-bold text-yellow-500 animate-pulse">
+                    SURVIVED UNTIL ROUND {roundsSurvived}
+                </div>
+            )}
             
             <div className="flex flex-col gap-4 w-64">
                 <button 
@@ -103,6 +111,7 @@ const GameOverMenu = () => {
     );
 };
 
+/* ... PauseMenu, DebugOverlay ... */
 const PauseMenu = () => {
     const setGameState = useGameStore((state) => state.setGameState);
 
@@ -159,10 +168,11 @@ const DebugOverlay = () => {
   );
 };
 
-// Optimized HUD 
 const HUD = () => {
   const points = useGameStore((state) => state.playerStats.points);
   const [isReloading, setIsReloading] = useState(false);
+  const [wave, setWave] = useState(1);
+  const [showWaveClear, setShowWaveClear] = useState(false);
   
   // Refs for direct DOM manipulation (Performance)
   const staminaBarRef = useRef<HTMLDivElement>(null);
@@ -207,8 +217,22 @@ const HUD = () => {
            setIsReloading(data.isReloading);
        }
     };
+    
+    const handleRoundStart = (round: number) => {
+        setWave(round);
+        setShowWaveClear(false);
+    };
+    
+    // Optional: Flash "Wave Complete"
+    const handleRoundComplete = () => {
+         setShowWaveClear(true);
+         setTimeout(() => setShowWaveClear(false), 3000);
+    };
 
     EventBus.on('player-stats-update', handleStatsUpdate);
+    EventBus.on('round-start', handleRoundStart);
+    EventBus.on('round-complete', handleRoundComplete);
+
     const initial = useGameStore.getState().playerStats;
     handleStatsUpdate({
         stamina: initial.stamina,
@@ -219,52 +243,68 @@ const HUD = () => {
 
     return () => {
       EventBus.off('player-stats-update', handleStatsUpdate);
+      EventBus.off('round-start', handleRoundStart);
+      EventBus.off('round-complete', handleRoundComplete);
     };
   }, []);
   
   return (
     <div className="absolute inset-0 pointer-events-none p-6 flex flex-col justify-between z-10">
       <div className="flex justify-between items-start">
-         <div className="text-yellow-400 text-2xl font-mono">POINTS: {points}</div>
+         <div className="text-yellow-400 text-2xl font-mono text-shadow-md">POINTS: {points}</div>
       </div>
       
-      <div className="flex justify-end items-end gap-6">
-        <div className="flex flex-col items-end gap-2 w-64">
-           {/* Stamina Bar */}
-           <div className="w-full h-4 bg-gray-800 rounded overflow-hidden border border-gray-600">
-              <div 
-                ref={staminaBarRef}
-                className="h-full bg-green-500 transition-none" 
-                style={{ width: '100%' }}
-              />
-           </div>
-           <div className="text-green-500 text-xs font-bold tracking-wider">STAMINA</div>
+      <div className="flex justify-between items-end w-full">
+          {/* Wave Counter (Bottom Left) */}
+          <div className="flex flex-col items-start gap-1">
+              {/* Wave Clear Notification - Now smaller and above round text */}
+              {showWaveClear && (
+                 <div className="text-2xl font-bold text-yellow-400 animate-bounce tracking-widest drop-shadow-xl mb-1">
+                     WAVE SURVIVED
+                 </div>
+              )}
+          
+              <div className="text-red-600 font-extrabold text-5xl tracking-tighter opacity-80 drop-shadow-xl animate-in slide-in-from-right duration-700">
+                  ROUND <span className="text-white text-6xl">{wave}</span>
+              </div>
+          </div>
 
-           {/* Health & Ammo */}
-           <div className="text-right mt-2">
-             <div className="text-red-500 text-4xl font-black">
-                <span ref={healthTextRef}>100</span> <span className="text-sm text-gray-400">HP</span>
+          <div className="flex flex-col items-end gap-2 w-64">
+             {/* Stamina Bar */}
+             <div className="w-full h-4 bg-gray-800 rounded overflow-hidden border border-gray-600">
+                <div 
+                  ref={staminaBarRef}
+                  className="h-full bg-green-500 transition-none" 
+                  style={{ width: '100%' }}
+                />
              </div>
-             
-             {/* Ammo Display */}
-             <div className="text-yellow-500 text-2xl font-bold flex items-center justify-end h-8">
-                {/* Spinner - Visible only when reloading */}
-                <div className={`w-8 flex justify-center mr-1 ${isReloading ? '' : 'hidden'}`}>
-                    <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
-                </div>
-                
-                {/* Ammo Count - Visible only when NOT reloading */}
-                <span 
-                    ref={currentAmmoRef} 
-                    className={`w-8 text-right mr-1 ${isReloading ? 'hidden' : ''}`}
-                >
-                    {lastAmmo.current}
-                </span>
+             <div className="text-green-500 text-xs font-bold tracking-wider">STAMINA</div>
 
-                <span className="text-gray-500 text-xl">/ <span ref={maxAmmoRef}>{lastMaxAmmo.current}</span></span>
+             {/* Health & Ammo */}
+             <div className="text-right mt-2">
+               <div className="text-red-500 text-4xl font-black">
+                  <span ref={healthTextRef}>100</span> <span className="text-sm text-gray-400">HP</span>
+               </div>
+               
+               {/* Ammo Display */}
+               <div className="text-yellow-500 text-2xl font-bold flex items-center justify-end h-8">
+                  {/* Spinner - Visible only when reloading */}
+                  <div className={`w-8 flex justify-center mr-1 ${isReloading ? '' : 'hidden'}`}>
+                      <Loader2 className="w-6 h-6 animate-spin text-yellow-500" />
+                  </div>
+                  
+                  {/* Ammo Count - Visible only when NOT reloading */}
+                  <span 
+                      ref={currentAmmoRef} 
+                      className={`w-8 text-right mr-1 ${isReloading ? 'hidden' : ''}`}
+                  >
+                      {lastAmmo.current}
+                  </span>
+
+                  <span className="text-gray-500 text-xl">/ <span ref={maxAmmoRef}>{lastMaxAmmo.current}</span></span>
+               </div>
              </div>
-           </div>
-        </div>
+          </div>
       </div>
     </div>
   );

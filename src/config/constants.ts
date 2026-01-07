@@ -13,7 +13,7 @@ export const PLAYER = {
   STAMINA_DRAIN_RATE: 25, // per second
   INTERACTION_RADIUS: 60, // pixels
   DEFAULT_FOV: 90, // Degrees for flashlight
-  BASE_RADIUS: 16, // Collision radius
+  BASE_RADIUS: 13, // Collision radius
 } as const;
 
 export const ZOMBIE = {
@@ -39,6 +39,12 @@ export const VISION = {
     FOG_ALPHA: 0.65, // 65% darkness for obstacles/background
     FOG_COLOR: 0x000000,
     SOFT_SHADOWS: true,
+} as const;
+
+export const WAVE = {
+    MAX_ACTIVE_ZOMBIES: 24, // Hard cap on active entities
+    INTERMISSION_DURATION: 5000, // ms
+    BASE_SPAWN_RATE: 3000, // ms
 } as const;
 
 export const WEAPON = {

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.16] - Phase 3 Step 3.1 (Wave Manager & Director AI)
+### Added
+- **Systems**:
+    - `src/game/systems/WaveManager.ts`: Manages round progression, zombie counts, and spawn timers.
+    - `src/game/systems/DirectorAI.ts`: Monitors player stress (health/ammo) and adjusts spawn pacing.
+- **Integration**:
+    - Initialized `WaveManager` and `DirectorAI` in `MainGameScene`.
+    - Refactored `Spawner.ts` to be controlled by `WaveManager`.
+
 ## [0.1.15] - Phase 2 Step 2.3 (Interactables & Barriers)
 ### Added
 - **Interaction System**:
