@@ -106,17 +106,19 @@
     *   Implement `TilePainter`: Click to place floor/wall tiles.
 
 *   **Step 4.2: Object Placement & Configuration**
-    *   Implement `ObjectPlacer`: Drag entities (Spawners, Machines) onto the grid.
+    *   Implement `ObjectPlacer`: Drag entities (Spawners, Machines, Perks, Baricades, Doors, Mystery Box, PackAPunch, WallBuy) onto the grid.
     *   Implement `PropertyInspector`: When an object is clicked, show a Form to edit its JSON properties (e.g., `DoorCost`, `WeaponID`).
+    *   custom rotation for objects, move them pixel wise (free movement and snap to grid + in editor transform options) + add inspector to set rotation,position, scale, scripts (later), attribtues, hook and more (eg set layer, target layer or world layer). inspector shows current select entity object and allows to edit it.
 
 *   **Step 4.3: Visual Scripting System**
     *   Design the "Trigger/Action" JSON format.
-    *   Implement `ScriptEditor` UI: Add simple logic blocks (e.g., `IF PlayerEntersZone(A) THEN SpawnZombie(Boss)`).
+    *   Implement `ScriptEditor` UI: Add simple logic blocks (e.g., `IF PlayerEntersZone(A) THEN SpawnZombie(Boss)`). + here allow to write in simple text editor to create custom logic eg in simple programing language or javascript. high security with analyzer for malicious code, high security robust.
     *   Implement `ScriptEngine`: The runtime interpreter that executes these scripts during the game.
 
 *   **Step 4.4: File I/O**
     *   Implement "Save Project": Serialize map to JSON -> Store in `localForage`.
-    *   Implement "Export/Import": Download/Upload `.json` files (validated by Zod).
+    *   Implement "Export/Import": Download/Upload `.json` files (validated by Zod). create export and improter which read the files and use the internal logic to use the game engine to use the created assets in game, to translate the editor map to a real game map, similar to defaultmap, here needs good translator.
+    *   Implement "Load Project": Deserialize map from JSON -> Load into EditorScene. + high security with analyzer for malicious code, high security robust.
 
 ---
 
@@ -132,6 +134,8 @@
     *   Create Main Menu "Loadout" screen.
     *   Implement Weapon Kits: Select attachments/skins unlocked via Profile level.
     *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
+    *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
+    *   Implement "Game Settings": load custom maps. as well as map selector of pre build maps.
 
 ---
 
@@ -146,6 +150,7 @@
 *   **Step 6.2: Replication (Host)**
     *   The Host runs the `WaveManager`, `DirectorAI`, and `Physics`.
     *   Serialize `WorldState` (Positions, Health, Door States) -> Broadcast to clients (20-30Hz).
+    *   send all game settings and data to clients. also send map data to clients. in lobby preload map data if custom map is selected, for seamless play.
 
 *   **Step 6.3: Client Simulation**
     *   Implement `InputPacket`: Send Key presses/Mouse Angle to Host.

@@ -11,7 +11,9 @@ import './tests/weaponTests';
 import './tests/mapTests';
 import './tests/zombieTests';
 import './tests/interactionTests'; 
+import './tests/editorTests';
 import { ActivePowerUps } from './game/ui/ActivePowerUps';
+import { EditorOverlay } from './game/ui/Editor/EditorOverlay';
 import Phaser from 'phaser';
 
 // --- UI COMPONENTS ---
@@ -48,7 +50,7 @@ const MainMenu = () => {
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
       <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 3.2: Economy & Items</p>
+      <p className="text-gray-400 mb-8">Phase 4.2: Object Placement & Configuration</p>
       <div className="flex gap-4">
         <button 
           onClick={startGame}
@@ -156,7 +158,7 @@ const DebugOverlay = () => {
   };
 
   return (
-    <div className="absolute top-0 right-0 p-2 bg-black/50 text-green-400 font-mono text-xs pointer-events-auto z-50 flex flex-col items-end gap-2">
+    <div className="absolute bottom-0 right-0 p-2 bg-black/50 text-green-400 font-mono text-xs pointer-events-auto z-50 flex flex-col items-end gap-2">
       <div>FPS: {fps}</div>
       <div>VER: 0.1.18</div>
       <button 
@@ -305,20 +307,7 @@ const HUD = () => {
   );
 };
 
-const EditorOverlay = () => {
-  const setGameState = useGameStore((state) => state.setGameState);
-  return (
-    <div className="absolute inset-0 bg-gray-900/90 text-white p-4 z-20 flex flex-col pointer-events-auto">
-       <div className="flex justify-between items-center border-b border-gray-700 pb-4 mb-4">
-          <h2 className="text-xl font-bold">Map Editor</h2>
-          <button onClick={() => setGameState(GameState.MENU)} className="text-red-400 hover:text-red-300">Exit</button>
-       </div>
-       <div className="flex-1 flex items-center justify-center text-gray-500">
-         Editor Tools Placeholder
-       </div>
-    </div>
-  );
-};
+
 
 
 const InteractionPrompt = () => {
@@ -448,6 +437,8 @@ const App: React.FC = () => {
         EventBus.emit('exit-game');
     } else if (gameState === GameState.GAME_OVER) {
         // Handled internally by Game Over Event
+    } else if (gameState === GameState.EDITOR) {
+        EventBus.emit('start-editor');
     }
 
   }, [gameState, isLoaded]); // Removed prevGameState from dep array to avoid infinite loops, relying on ref

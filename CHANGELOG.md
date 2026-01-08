@@ -3,6 +3,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.20] - 2026-01-08
+### Added
+- Editor: Object Placement foundation.
+- Editor: Brush Preview (Grey/Red outlines).
+- Editor: Support for placing Spawners, Machines, Perks, Barricades, Doors, Mystery Box, PackAPunch.
+
+## [0.1.19] - 2025-01-08 - Phase 4 Step 4.1 (Editor UI & Interaction)
+### Added
+- **Editor System**:
+  - `src/game/scenes/EditorScene.ts`: New scene for map editing with grid visualization.
+  - `src/game/ui/Editor/EditorSidebar.tsx`: UI for selecting tiles and tools.
+  - `src/game/ui/Editor/EditorOverlay.tsx`: Overlay container for Editor UI.
+- **Integration**:
+  - Registered `EditorScene` in `gameConfig.ts`.
+  - Added "Map Editor" button to Main Menu.
+  - Added Editor state handling in `App.tsx` and `PhaserGame.tsx`.
+
 ## [0.1.18] - 2025-01-07
 
 ### Added

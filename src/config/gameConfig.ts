@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import PhaserRaycaster from 'phaser-raycaster';
 import { DEBUG } from './constants';
 import { BootScene } from '../game/scenes/BootScene';
+import { EditorScene } from '../game/scenes/EditorScene';
 import { MenuScene } from '../game/scenes/MenuScene';
 import { MainGameScene } from '../game/scenes/MainGameScene';
 
@@ -12,7 +13,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO, // WebGL if available, Canvas fallback
   parent: 'phaser-container', // ID of the DOM element to mount to
   backgroundColor: '#000000', // Black background for menu
-  scene: [BootScene, MenuScene, MainGameScene], // Register Scenes
+  scene: [BootScene, MenuScene, MainGameScene, EditorScene], // Register Scenes
   scale: {
     mode: Phaser.Scale.RESIZE, // Responsive
     autoCenter: Phaser.Scale.CENTER_BOTH,

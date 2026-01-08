@@ -69,6 +69,8 @@ export const WEAPON_DEFS = {
         type: 'SMALL',
         category: 'PISTOL',
         bulletCount: 1,
+        cost: 250,
+        
     },
     RIFLE: {
         name: 'AK-47',
@@ -86,6 +88,7 @@ export const WEAPON_DEFS = {
         type: 'LARGE',
         category: 'RIFLE',
         bulletCount: 1,
+        cost: 1000,
     },
     SHOTGUN: {
         name: 'Olympia',
@@ -103,6 +106,7 @@ export const WEAPON_DEFS = {
         type: 'LARGE',
         category: 'SHOTGUN',
         bulletCount: 8,
+        cost: 500,
     },
     SNIPER: {
         name: 'L96A1',
@@ -120,6 +124,7 @@ export const WEAPON_DEFS = {
         type: 'LARGE',
         category: 'SNIPER',
         bulletCount: 1,
+        cost: 2000,
     }
 } as const;
 

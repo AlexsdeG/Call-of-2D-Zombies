@@ -39,6 +39,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private zombieGroup: Phaser.Physics.Arcade.Group | null = null;
   private lastMeleeTime: number = 0;
   private readonly MELEE_COOLDOWN = 500;
+  private readonly MELEE_RANGE = 80;
 
   // Sync timers
   public get health(): number {
@@ -264,14 +265,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       
       // Hit Logic
       if (this.zombieGroup) {
-          const range = 60;
           // Optimization: Check distance first
           this.zombieGroup.children.each((child) => {
                const z = child as Zombie;
                if (!z.active) return true;
                
                const dist = Phaser.Math.Distance.Between(this.x, this.y, z.x, z.y);
-               if (dist < range) {
+               if (dist < this.MELEE_RANGE) {
                    // Check Cone
                    const angleToZombie = Phaser.Math.Angle.Between(this.x, this.y, z.x, z.y);
                    let diff = Phaser.Math.Angle.Wrap(angleToZombie - this.rotation);
