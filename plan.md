@@ -110,9 +110,14 @@
     *   Implement `PropertyInspector`: When an object is clicked, show a Form to edit its JSON properties (e.g., `DoorCost`, `WeaponID`).
     *   custom rotation for objects, move them pixel wise (free movement and snap to grid + in editor transform options) + add inspector to set rotation,position, scale, scripts (later), attribtues, hook and more (eg set layer, target layer or world layer). inspector shows current select entity object and allows to edit it.
 
-*   **Step 4.3: Visual Scripting System**
+    *   **Step 4.3: Scripting System**
     *   Design the "Trigger/Action" JSON format.
-    *   Implement `ScriptEditor` UI: Add simple logic blocks (e.g., `IF PlayerEntersZone(A) THEN SpawnZombie(Boss)`). + here allow to write in simple text editor to create custom logic eg in simple programing language or javascript. high security with analyzer for malicious code, high security robust.
+    *   Implement `ScriptEditor` UI: Add simple code editor (e.g., `IF PlayerEntersZone(A) THEN SpawnZombie(Boss)`). + here allow to write in simple text editor to create custom logic eg in simple programing language or javascript. high security with analyzer for malicious code, high security robust.
+    *   allow to attach scirpts to spawners, machines, perks, barricades, doors, mystery box, packapunch, wallbuy, zombies, players, etc. all objects + add in inspector to set scripts.
+    *   add some hooks to entites to allow some interaction with code. write here full documentaion into readme what hooks and functions can be called (eg setter/getter and otehr stuff, hooks to add new skripts at init, start in game loop)
+    *   section for general scirpts + section for gamemode to create a custom gamemode file
+    *   implement into code also the trigger zone to allow listens on enter and leave events
+    *   also add interactoin in code to use oher objects in the scene, eg maniplulate other objects, use other objects, list obects in sceen, get them by name or id, etc. set paramters, positoin velocity and more.
     *   Implement `ScriptEngine`: The runtime interpreter that executes these scripts during the game.
 
 *   **Step 4.4: File I/O**

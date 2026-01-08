@@ -117,6 +117,10 @@ export class EditorScene extends Phaser.Scene {
     EventBus.on('editor-object-update-prop', this.handleObjectUpdateProp, this);
     EventBus.on('editor-grid-update', this.handleGridSizeUpdate, this);
     
+    // Input Focus Handling
+    EventBus.on('editor-input-focus', () => { this.controlsEnabled = false; }, this);
+    EventBus.on('editor-input-blur', () => { this.controlsEnabled = true; }, this);
+
     // Focus Game on click
     this.input.on('pointerdown', () => {
         this.game.canvas.focus();
@@ -140,10 +144,12 @@ export class EditorScene extends Phaser.Scene {
     this.currentTileIndex = 1;
   }
 
-  update(_time: number, delta: number) {
-    if (this.controls) {
-        this.controls.update(delta);
-    }
+  private controlsEnabled: boolean = true;
+
+  update(time: number, delta: number) {
+      if (!this.controlsEnabled) return;
+
+      this.controls.update(delta);
   }
 
   shutdown() {
@@ -468,6 +474,13 @@ export class EditorScene extends Phaser.Scene {
            if (this.currentObjectType === 'MysteryBox') {
                // 0 offset X, 16 offset Y
                y += 16;
+           } else if (this.currentObjectType === 'SpawnPoint') {
+               // Standard center offset
+                x += 16;
+                y += 16;
+                this.cursorGraphics.lineStyle(2, 0x00ffff, 0.8); // Cyan for SpawnPoint
+                this.cursorGraphics.strokeRect(x - w/2, y - h/2, w, h);
+                return;
            } else {
                x += 16;
                y += 16;
@@ -529,6 +542,29 @@ export class EditorScene extends Phaser.Scene {
           // No offset for X (Center on grid line means splitting 2 tiles perfectly i.e. 32 -> 0..64)
           // Add 16 for Y (Center on tile center)
           y += 16;
+      } else if (type === 'SpawnPoint') {
+          // Validation: Cannot place on Wall
+          // We check the center or corners. Let's check the center tile.
+          const tileX = Math.floor(x / this.TILE_SIZE);
+          const tileY = Math.floor(y / this.TILE_SIZE);
+          
+          if (this.tiles.has(`${tileX},${tileY}`)) {
+              const tile = this.tiles.get(`${tileX},${tileY}`);
+              if (tile && tile.texture.key === 'editor_wall') {
+                  // It's a wall! Fail.
+                  // Ideally show a toast/notification, but for now just return.
+                  console.warn("Cannot place SpawnPoint on a Wall");
+                  return;
+              }
+          }
+          
+          // Also check Grid edges if 32x32? 
+          // Editor logic: Objects are placed at grid snaps. 
+          // If we are placing a 32x32 object at x,y (center), it occupies exactly one tile if aligned.
+          // x,y are snapped.
+          
+          x += 16;
+          y += 16;
       } else {
           x += 16;
           y += 16;
@@ -541,6 +577,16 @@ export class EditorScene extends Phaser.Scene {
                existingIdsToDelete.push(obj.id);
            }
       }
+
+      // Enforce Single Spawn Point
+      if (type === 'SpawnPoint') {
+          for (const obj of this.editorObjects.values()) {
+              if (obj.type === 'SpawnPoint') {
+                  existingIdsToDelete.push(obj.id);
+              }
+          }
+      }
+
       existingIdsToDelete.forEach(id => {
           this.editorObjects.get(id)?.sprite.destroy();
           this.editorObjects.delete(id);
@@ -572,7 +618,26 @@ export class EditorScene extends Phaser.Scene {
       const container = this.add.container(x, y);
       const gfx = this.add.graphics();
       
-      if (type === 'Spawner') gfx.fillStyle(0xff0000, 0.7);
+      if (type === 'TriggerZone') {
+          gfx.lineStyle(2, 0xffff00, 1);
+          gfx.fillStyle(0xffff00, 0.2); // Transparent Yellow
+          // Default radius 32
+          const radius = properties.radius || 32;
+          gfx.strokeCircle(0, 0, radius);
+          gfx.fillCircle(0, 0, radius);
+          // Set body size for selection (approximate box)
+          width = radius * 2;
+          height = radius * 2;
+      } else if (type === 'CustomObject') {
+          const color = parseInt((properties.color || '#888888').replace('#', '0x'));
+          gfx.lineStyle(2, 0xffffff, 1);
+          gfx.fillStyle(color, 0.8);
+          width = properties.width || 32;
+          height = properties.height || 32;
+          gfx.strokeRect(-width/2, -height/2, width, height);
+          gfx.fillRect(-width/2, -height/2, width, height);
+      } else if (type === 'Spawner') gfx.fillStyle(0xff0000, 0.7);
+      else if (type === 'SpawnPoint') gfx.fillStyle(0x00ffff, 0.7); // Cyan
       else if (type === 'Barricade') gfx.fillStyle(0x8B4513, 0.7);
       else if (type === 'Door') gfx.fillStyle(0x888888, 0.7);
       else if (type === 'MysteryBox') gfx.fillStyle(0x0000ff, 0.7);
@@ -585,7 +650,8 @@ export class EditorScene extends Phaser.Scene {
       gfx.fillStyle(0xffffff, 0.8);
       gfx.fillRect((width/2) - 4, -2, 4, 4); // Little notch on right
 
-      const text = this.add.text(0, 0, type.substring(0, 4), { fontSize: '10px', color: '#ffffff' });
+      const label = properties.name || type.substring(0, 4);
+      const text = this.add.text(0, 0, label, { fontSize: '10px', color: '#ffffff' });
       text.setOrigin(0.5);
       
       container.add([gfx, text]);
@@ -678,47 +744,129 @@ export class EditorScene extends Phaser.Scene {
 
   private handleObjectUpdateProp(data: { id: string, key: string, value: any }) {
       const obj = this.editorObjects.get(data.id);
-      if (obj) {
-          obj.properties[data.key] = data.value;
-          
-          if (data.key === 'rotation') {
-               obj.rotation = data.value;
-               obj.sprite.setAngle(obj.rotation);
-               
-               // Fix Position Offset for MysteryBox when rotating 90 degrees
-               if (obj.type === 'MysteryBox') {
-                   // Snap logic check
-                   const rot = obj.rotation;
-                   
-                   let gx = Math.round(obj.x / this.gridSize) * this.gridSize;
-                   let gy = Math.round(obj.y / this.gridSize) * this.gridSize;
-                   
-                   // If turning to 90/270 (Vertical):
-                   if (Math.abs(rot) === 90 || Math.abs(rot) === 270) {
-                      // Needs offset in X (16), centered Grid Y
-                      // Current (0 deg) was: X on grid, Y+16
-                      
-                      // We re-snap based on the ideal placement logic:
-                      obj.x = gx + 16;
-                      obj.y = gy; // Center on grid Y
-                   } else {
-                      // Turning to 0/180 (Horizontal):
-                      // Needs offset in Y (16), centered Grid X
-                       obj.x = gx;
-                       obj.y = gy + 16;
-                   }
-                   
-                   obj.sprite.setPosition(obj.x, obj.y);
-                   // Update Selection
-                   EventBus.emit('editor-object-selected', {
-                      id: obj.id,
-                      type: obj.type,
-                      x: obj.x,
-                      y: obj.y,
-                      properties: obj.properties
-                   });
-               }
+      if (!obj) return;
+      
+      obj.properties[data.key] = data.value;
+
+      // Handle Container-based Objects (Visuals + Text)
+      // obj.sprite is a Container containing [Graphics, Text]
+      const container = obj.sprite as Phaser.GameObjects.Container;
+      
+      // Update Name Label
+      if (data.key === 'name') {
+          const text = container.getAt(1) as Phaser.GameObjects.Text;
+          if (text) {
+              text.setText(data.value || obj.type.substring(0, 4));
           }
+      }
+      
+      // Handle Position Updates (X/Y)
+      if (data.key === 'x' || data.key === 'y') {
+          if (data.key === 'x') obj.x = data.value;
+          if (data.key === 'y') obj.y = data.value;
+          
+          if (obj.type === 'CustomObject' || obj.type === 'TriggerZone' || obj.type === 'SpawnPoint') {
+               // Container based
+               container.setPosition(obj.x, obj.y);
+          } else {
+               // Sprite based (potentially) - Wait, do all use containers now?
+               // placeObject uses container for Custom/Trigger/Visuals? 
+               // Standard objects (Door, etc) use `this.add.image` or `sprite`.
+               // Let's check `placeObject`. Standard objects use `this.add.image`.
+               // Only Custom/Trigger/Visuals use Container logic in my recent edit.
+               // Actually, `handleObjectUpdateProp` early on casts `obj.sprite as Container`.
+               // This is risky if standard objects are Images.
+               // FIX: Check type before casting.
+          }
+           
+          // Universal move
+          if (obj.sprite instanceof Phaser.GameObjects.Container || obj.sprite instanceof Phaser.GameObjects.Sprite || obj.sprite instanceof Phaser.GameObjects.Image) {
+              obj.sprite.setPosition(obj.x, obj.y);
+          }
+      }
+
+      // Handle Redraws for Custom Visuals
+      if (['width', 'height', 'color', 'radius'].includes(data.key)) {
+          const gfx = container.getAt(0) as Phaser.GameObjects.Graphics;
+          if (gfx) {
+              gfx.clear();
+
+              if (obj.type === 'CustomObject') {
+                  const w = obj.properties.width || 32;
+                  const h = obj.properties.height || 32;
+                  // Update logical dimensions for selection
+                  obj.width = w;
+                  obj.height = h;
+
+                  const color = parseInt((obj.properties.color || '#888888').replace('#', '0x'));
+                  
+                  gfx.lineStyle(2, 0xffffff, 1);
+                  gfx.fillStyle(color, 0.8);
+                  gfx.strokeRect(-w/2, -h/2, w, h);
+                  gfx.fillRect(-w/2, -h/2, w, h);
+                  
+                  // Update Physics body
+                  const body = container.body as Phaser.Physics.Arcade.Body;
+                  if (body) {
+                      body.setSize(w, h);
+                      body.setOffset(-w/2, -h/2);
+                  }
+              } else if (obj.type === 'TriggerZone') {
+                  const r = obj.properties.radius || 32;
+                  
+                  // Update logical dimensions for selection
+                  obj.width = r * 2;
+                  obj.height = r * 2;
+
+                  gfx.lineStyle(2, 0xffff00, 1);
+                  gfx.fillStyle(0xffff00, 0.2);
+                  gfx.strokeCircle(0, 0, r);
+                  gfx.fillCircle(0, 0, r);
+                  
+                  const body = container.body as Phaser.Physics.Arcade.Body;
+                  if (body) {
+                      body.setSize(r * 2, r * 2);
+                      body.setOffset(-r, -r);
+                  }
+              }
+          }
+      }
+      
+      // Handle Rotation
+      if (data.key === 'rotation') {
+           const rot = data.value;
+           obj.rotation = rot;
+           
+           // Rotate the container
+           container.setAngle(rot);
+           
+           // MysteryBox Snap Logic (90 degree turns need offset shift)
+           if (obj.type === 'MysteryBox') {
+               let gx = Math.round(obj.x / this.gridSize) * this.gridSize;
+               let gy = Math.round(obj.y / this.gridSize) * this.gridSize;
+               
+               if (Math.abs(rot) === 90 || Math.abs(rot) === 270) {
+                   // Vertical: Center on Grid Y, Offset X
+                   obj.x = gx + 16;
+                   obj.y = gy; 
+               } else {
+                   // Horizontal: Center on Grid X, Offset Y
+                   obj.x = gx;
+                   obj.y = gy + 16;
+               }
+               container.setPosition(obj.x, obj.y);
+           }
+      }
+      
+      // Update Selection Highlight
+      if (this.selectedObject && this.selectedObject.id === obj.id) {
+          EventBus.emit('editor-object-selected', {
+             id: obj.id, 
+             type: obj.type, 
+             x: obj.x, 
+             y: obj.y, 
+             properties: obj.properties 
+          });
       }
   }
 

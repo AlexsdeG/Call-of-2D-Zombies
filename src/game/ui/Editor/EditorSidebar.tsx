@@ -21,7 +21,7 @@ export const EditorSidebar = () => {
 
   // Object State
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
-  const objectTypes = ['Spawner', 'Barricade', 'Door', 'WallBuy', 'PerkMachine', 'MysteryBox', 'PackAPunch'];
+  const objectTypes = ['Spawner', 'SpawnPoint', 'CustomObject', 'TriggerZone', 'Barricade', 'Door', 'WallBuy', 'PerkMachine', 'MysteryBox', 'PackAPunch'];
 
 
 
@@ -231,13 +231,31 @@ export const EditorSidebar = () => {
                           
                           <div className="grid grid-cols-2 gap-2">
                               <div>
-                                  <label className="text-[10px] text-gray-500">X</label>
-                                  <input type="number" readOnly value={selectedObject.x} className="w-full bg-black border border-gray-700 rounded p-1 text-xs text-gray-400" />
-                              </div>
-                              <div>
-                                  <label className="text-[10px] text-gray-500">Y</label>
-                                  <input type="number" readOnly value={selectedObject.y} className="w-full bg-black border border-gray-700 rounded p-1 text-xs text-gray-400" />
-                              </div>
+                                      <label className="text-[10px] text-gray-500">X</label>
+                                      <input 
+                                          type="number" 
+                                          step={8}
+                                          value={selectedObject.x} 
+                                          onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'x', value: parseInt(e.target.value) || 0 })}
+                                          onFocus={() => EventBus.emit('editor-input-focus')}
+                                          onBlur={() => EventBus.emit('editor-input-blur')}
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                          className="w-full bg-black border border-gray-700 rounded p-1 text-xs text-gray-400 font-mono focus:border-blue-500 outline-none"
+                                      />
+                                  </div>
+                                  <div>
+                                      <label className="text-[10px] text-gray-500">Y</label>
+                                      <input 
+                                          type="number" 
+                                          step={8}
+                                          value={selectedObject.y} 
+                                          onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'y', value: parseInt(e.target.value) || 0 })}
+                                          onFocus={() => EventBus.emit('editor-input-focus')}
+                                          onBlur={() => EventBus.emit('editor-input-blur')}
+                                          onKeyDown={(e) => e.stopPropagation()}
+                                          className="w-full bg-black border border-gray-700 rounded p-1 text-xs text-gray-400 font-mono focus:border-blue-500 outline-none"
+                                      />
+                                  </div>
                           </div>
 
                           {/* Custom Props */}
@@ -319,6 +337,95 @@ export const EditorSidebar = () => {
                                       >
                                           {['JUGGERNOG', 'SPEED_COLA', 'DOUBLE_TAP', 'STAMIN_UP'].map(p => <option key={p} value={p}>{p}</option>)}
                                       </select>
+                                  </div>
+                              )}
+
+                              
+                              {/* Name Property (for CustomObject/TriggerZone) */}
+                              {(selectedObject.type === 'CustomObject' || selectedObject.type === 'TriggerZone') && (
+                                  <div className="mb-2">
+                                      <label className="text-[10px] text-gray-500">Name</label>
+                                      <input 
+                                        type="text"
+                                        value={selectedObject.properties.name || ''}
+                                        onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'name', value: e.target.value })}
+                                        onFocus={() => EventBus.emit('editor-input-focus')}
+                                        onBlur={() => EventBus.emit('editor-input-blur')}
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        className="w-full bg-black border border-gray-700 rounded p-1 text-xs focus:border-blue-500 outline-none"
+                                        placeholder="Object Name"
+                                      />
+                                  </div>
+                              )}
+                              
+                              {/* Custom Object Props */}
+                              {selectedObject.type === 'CustomObject' && (
+                                  <>
+                                      <div>
+                                          <label className="text-[10px] text-gray-500">Color</label>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                type="color" 
+                                                value={selectedObject.properties.color || '#888888'}
+                                                onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'color', value: e.target.value })}
+                                                onFocus={() => EventBus.emit('editor-input-focus')}
+                                                onBlur={() => EventBus.emit('editor-input-blur')}
+                                                onKeyDown={(e) => e.stopPropagation()}
+                                                className="w-8 h-6 bg-transparent border-none p-0 cursor-pointer"
+                                              />
+                                              <input 
+                                                type="text" 
+                                                value={selectedObject.properties.color || '#888888'}
+                                                readOnly
+                                                className="flex-1 bg-black border border-gray-700 rounded p-1 text-xs text-gray-400 font-mono"
+                                              />
+                                          </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                          <div className="flex-1">
+                                              <label className="text-[10px] text-gray-500">Width</label>
+                                              <input 
+                                                type="number"
+                                                min="16" step="16"
+                                                value={selectedObject.properties.width || 32}
+                                                onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'width', value: parseInt(e.target.value) || 32 })}
+                                                onFocus={() => EventBus.emit('editor-input-focus')}
+                                                onBlur={() => EventBus.emit('editor-input-blur')}
+                                                onKeyDown={(e) => e.stopPropagation()}
+                                                className="w-full bg-black border border-gray-700 rounded p-1 text-xs focus:border-blue-500 outline-none"
+                                              />
+                                          </div>
+                                          <div className="flex-1">
+                                              <label className="text-[10px] text-gray-500">Height</label>
+                                              <input 
+                                                type="number"
+                                                min="16" step="16"
+                                                value={selectedObject.properties.height || 32}
+                                                onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'height', value: parseInt(e.target.value) || 32 })}
+                                                onFocus={() => EventBus.emit('editor-input-focus')}
+                                                onBlur={() => EventBus.emit('editor-input-blur')}
+                                                onKeyDown={(e) => e.stopPropagation()}
+                                                className="w-full bg-black border border-gray-700 rounded p-1 text-xs focus:border-blue-500 outline-none"
+                                              />
+                                          </div>
+                                      </div>
+                                  </>
+                              )}
+
+                              {/* Trigger Zone Props */}
+                              {selectedObject.type === 'TriggerZone' && (
+                                  <div>
+                                      <label className="text-[10px] text-gray-500">Radius</label>
+                                      <input 
+                                        type="number"
+                                        min="16" step="16"
+                                        value={selectedObject.properties.radius || 32}
+                                        onChange={(e) => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'radius', value: parseInt(e.target.value) || 32 })}
+                                        onFocus={() => EventBus.emit('editor-input-focus')}
+                                        onBlur={() => EventBus.emit('editor-input-blur')}
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        className="w-full bg-black border border-gray-700 rounded p-1 text-xs focus:border-blue-500 outline-none"
+                                      />
                                   </div>
                               )}
                           </div>
