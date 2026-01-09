@@ -124,6 +124,7 @@
     *   Implement "Save Project": Serialize map to JSON -> Store in `localForage`.
     *   Implement "Export/Import": Download/Upload `.json` files (validated by Zod). create export and improter which read the files and use the internal logic to use the game engine to use the created assets in game, to translate the editor map to a real game map, similar to defaultmap, here needs good translator.
     *   Implement "Load Project": Deserialize map from JSON -> Load into EditorScene. + high security with analyzer for malicious code, high security robust. load also all textures and assets, eg for custom objects.
+    *   Implement "Preview": here load the map data into a real game to test everything, with esc menu or death return to editor agian. here add preview button to top menu bar. this button will render the game using the ingame renderer but uses map data of the editor as map
 
 ---
 
@@ -137,10 +138,11 @@
 
 *   **Step 5.2: Customization UI**
     *   Create Main Menu "Loadout" screen.
+    *   safe full profile in localstorage. and be able to import/export from filesystem
     *   Implement Weapon Kits: Select attachments/skins unlocked via Profile level.
     *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
     *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
-    *   Implement "Game Settings": load custom maps. as well as map selector of pre build maps.
+    *   Implement "Game Settings": load custom maps, preloaded ones already in system and from files system. as well as map selector of pre build maps.
 
 ---
 

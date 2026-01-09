@@ -4,6 +4,7 @@ import { ScriptSchema } from './scriptSchema';
 export const TileSchema = z.number().int().min(0);
 
 export const ObjectEntitySchema = z.object({
+  id: z.string().optional(),
   type: z.string(),
   x: z.number(),
   y: z.number(),

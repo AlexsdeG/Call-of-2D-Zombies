@@ -84,7 +84,8 @@ export class MapManager {
         wallBuyGroup?: Phaser.Physics.Arcade.StaticGroup,
         mysteryBoxGroup?: Phaser.Physics.Arcade.StaticGroup,
         perkMachineGroup?: Phaser.Physics.Arcade.StaticGroup,
-        packAPunchGroup?: Phaser.Physics.Arcade.StaticGroup
+        packAPunchGroup?: Phaser.Physics.Arcade.StaticGroup,
+        customWallGroup?: Phaser.Physics.Arcade.StaticGroup
     ) {
         if (!mapData.objects || !this.pathfindingManager) return;
         
@@ -188,6 +189,35 @@ export class MapManager {
                  if (packAPunchGroup) {
                      const pap = new PackAPunch(this.scene, obj.x, obj.y);
                      packAPunchGroup.add(pap);
+                 }
+             } else if (obj.type === 'CustomObject') {
+                 if (customWallGroup) {
+                     const w = this.getProperty(obj, 'width', 32);
+                     const h = this.getProperty(obj, 'height', 32);
+                     const texKey = `custom-tex-${obj.id}`; 
+                     const hasTex = obj.properties?.texture && this.scene.textures.exists(texKey);
+                     
+                     let entity: Phaser.GameObjects.GameObject;
+                     
+                     if (hasTex) {
+                         const sprite = this.scene.add.sprite(obj.x, obj.y, texKey);
+                         sprite.setDisplaySize(w, h);
+                         entity = sprite;
+                     } else {
+                         // Graphic fallback
+                         const color = parseInt((this.getProperty(obj, 'color', '#888888')).replace('#', '0x'));
+                         const s = this.scene.add.sprite(obj.x, obj.y, 'wall_custom');
+                         s.setDisplaySize(w, h);
+                         s.setTint(color);
+                         entity = s;
+                     }
+                     
+                     customWallGroup.add(entity);
+                     // Add static body manually via existing physics group
+                     const body = (entity as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody;
+                     if (body) {
+                        body.updateFromGameObject();
+                     }
                  }
              }
         });

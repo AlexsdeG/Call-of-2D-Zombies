@@ -262,19 +262,48 @@ export class MainGameScene extends Phaser.Scene {
         
         if (this.wallLayer) this.player.weaponSystem.setWalls(this.wallLayer);
 
-        this.mapManager.createObjects(
-            valid.data, 
-            this.doorGroup, 
-            this.barricadeGroup, 
-            this.spawners, 
-            this.zombieGroup, 
-            this.player,
-            this.targetLayer,
-            this.wallBuyGroup,
-            this.mysteryBoxGroup,
-            this.perkMachineGroup,
-            this.packAPunchGroup
-        );
+        if (this.wallLayer) this.player.weaponSystem.setWalls(this.wallLayer);
+
+        // Preload Custom Textures
+        const customObjects = valid.data.objects?.filter(o => o.type === 'CustomObject' && o.properties?.texture) || [];
+        
+        const loadTexture = (obj: any): Promise<void> => {
+            return new Promise((resolve) => {
+                const key = `custom-tex-${obj.id}`;
+                // Check if already exists?
+                if (this.textures.exists(key)) {
+                    resolve();
+                    return;
+                }
+                
+                this.textures.addBase64(key, obj.properties.texture);
+                this.textures.once('onload', () => {
+                   resolve();
+                });
+                // Fallback timeout?
+                setTimeout(resolve, 1000); 
+            });
+        };
+
+        Promise.all(customObjects.map(loadTexture)).then(() => {
+             // Create Objects AFTER textures are ready
+             if (this.scene.isActive()) {
+                 this.mapManager.createObjects(
+                    valid.data!, 
+                    this.doorGroup, 
+                    this.barricadeGroup, 
+                    this.spawners, 
+                    this.zombieGroup, 
+                    this.player,
+                    this.targetLayer,
+                    this.wallBuyGroup,
+                    this.mysteryBoxGroup,
+                    this.perkMachineGroup,
+                    this.packAPunchGroup,
+                    this.customWallGroup // Pass custom walls!
+                );
+             }
+        });
         
         // Register Scripts
         if (valid.data.scripts) {

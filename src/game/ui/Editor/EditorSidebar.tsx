@@ -457,6 +457,43 @@ export const EditorSidebar = () => {
                                               />
                                           </div>
                                       </div>
+                                      
+                                      {/* Texture Upload */}
+                                      <div>
+                                          <label className="text-[10px] text-gray-500">Texture Image</label>
+                                          <div className="flex flex-col gap-2">
+                                              <input 
+                                                type="file" 
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (evt) => {
+                                                            const result = evt.target?.result as string;
+                                                            if (result) {
+                                                                EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'texture', value: result });
+                                                            }
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }}
+                                                className="w-full text-xs text-gray-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-gray-700 file:text-gray-200 hover:file:bg-gray-600"
+                                              />
+                                              {selectedObject.properties.texture && (
+                                                  <div className="relative group w-12 h-12 border border-gray-600 bg-black/50 rounded overflow-hidden">
+                                                      <img src={selectedObject.properties.texture} className="w-full h-full object-cover" alt="preview" />
+                                                      <button 
+                                                        onClick={() => EventBus.emit('editor-object-update-prop', { id: selectedObject.id, key: 'texture', value: undefined })}
+                                                        className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-red-500 font-bold text-xs transition"
+                                                      >
+                                                          X
+                                                      </button>
+                                                  </div>
+                                              )}
+                                          </div>
+                                      </div>
+
                                       <div className="flex gap-2">
                                           <div className="flex-1">
                                               <label className="text-[10px] text-gray-500">Width</label>

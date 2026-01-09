@@ -56,6 +56,10 @@ export class EditorScene extends Phaser.Scene {
     // 0. Generate Editor Resources
     this.createEditorTextures();
 
+    // 0.1 Restore Textures for existing CustomObjects on scene start?
+    // Not strictly needed if we assume empty scene or we iterate objects later.
+    // Ideally we iterate existing custom objects and load their textures if preserved (not standard flow yet, usually empty scene or loaded via JSON which comes later)
+
     // 1. Grid Visualization
     this.createGrid();
 
