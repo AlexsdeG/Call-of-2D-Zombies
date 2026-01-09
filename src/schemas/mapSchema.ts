@@ -11,6 +11,7 @@ export const ObjectEntitySchema = z.object({
   width: z.number().optional(),
   height: z.number().optional(),
   properties: z.record(z.string(), z.any()).optional(),
+  scripts: z.array(ScriptSchema).optional(),
 });
 
 export const MapDataSchema = z.object({

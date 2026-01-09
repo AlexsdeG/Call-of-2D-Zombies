@@ -420,4 +420,19 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         
         return true; 
     }
+
+    destroy(fromScene?: boolean): void {
+        if (this.lidSprite) this.lidSprite.destroy();
+        if (this.weaponSprite) this.weaponSprite.destroy();
+        if (this.rollEvent) this.rollEvent.remove(false);
+        if (this.pickupTimer) this.pickupTimer.remove(false);
+        
+        // Remove from static list
+        const index = MysteryBox.allBoxes.indexOf(this);
+        if (index > -1) {
+            MysteryBox.allBoxes.splice(index, 1);
+        }
+        
+        super.destroy(fromScene);
+    }
 }

@@ -1,5 +1,9 @@
 import * as Phaser from 'phaser';
 import { EventBus } from '../EventBus';
+// Ensure these imports exist. If MapSerializer/ProjectStorage are not visible, we need to check paths.
+// They are likely ../systems/MapSerializer and ../storage/ProjectStorage
+import { MapSerializer } from '../systems/MapSerializer';
+import { ProjectStorage } from '../storage/ProjectStorage';
 
 interface EditorObject {
     id: string;
@@ -51,6 +55,7 @@ export class EditorScene extends Phaser.Scene {
   }
 
   create() {
+    this.scene.stop('MainGameScene'); // Ensure Game is stopped
     this.cameras.main.setBackgroundColor('#111111');
     
     // 0. Generate Editor Resources
@@ -129,11 +134,32 @@ export class EditorScene extends Phaser.Scene {
     EventBus.on('editor-input-focus', this.handleInputFocus, this);
     EventBus.on('editor-input-blur', this.handleInputBlur, this);
 
-    // Focus Game on click
-    this.input.on('pointerdown', () => {
-        this.game.canvas.focus();
-        window.focus();
-    });
+      // I/O Commands from Overlay
+      EventBus.on('editor-command-save', this.handleSaveProject, this);
+      EventBus.on('editor-command-save-file', this.handleSaveFile, this);
+      EventBus.on('editor-command-export', this.handleExportProject, this);
+      EventBus.on('editor-command-import', this.handleImportProject, this);
+      EventBus.on('editor-command-preview', this.handlePreviewMap, this);
+      
+      EventBus.on('check-editor-status', () => console.log('EditorScene is Active'), this);
+      
+      // Safety: If game starts externally (e.g. from Menu), ensure we die
+      // If we are still active when 'start-game' fires, MenuScene likely wasn't active to handle it.
+      EventBus.off('start-game', this.handleAutoShutdown, this); // Prevent dupe
+      EventBus.on('start-game', this.handleAutoShutdown, this);
+
+
+      
+      // Input Blocking (Modals)
+      EventBus.on('editor-input-enable', this.handleInputEnable, this);
+
+      // Focus Game on click (only if controls enabled)
+      this.input.on('pointerdown', () => {
+          if (this.controlsEnabled) {
+              this.game.canvas.focus();
+              window.focus();
+          }
+      });
 
     // Notify UI we are ready
     this.time.delayedCall(100, () => {
@@ -143,9 +169,7 @@ export class EditorScene extends Phaser.Scene {
     });
 
     // Exit Listener
-    EventBus.on('exit-game', () => {
-        this.scene.start('MenuScene');
-    }, this);
+    EventBus.on('exit-game', this.handleExit, this);
     
     // Default Tool: Paint Wall
     this.currentTool = 'paint';
@@ -155,6 +179,30 @@ export class EditorScene extends Phaser.Scene {
     this.mapGlobalVariables = [];
     this.mapGlobalScripts = [];
     EventBus.on('editor-update-globals', this.handleGlobalUpdate, this);
+    
+    // Shutdown Handler
+    this.events.on('shutdown', this.shutdown, this);
+  }
+
+  // Named Handlers
+  private handleExit() {
+      console.log('EditorScene: handleExit -> Switching to MenuScene');
+      this.scene.start('MenuScene');
+  }
+
+  private handleAutoShutdown() {
+      console.warn('EditorScene: Auto-Shutdown triggered by start-game. RECOVERY: Starting MainGameScene.');
+      // If we are here, MenuScene failed to start MainGameScene because Editor was still active.
+      // We must take over and start the game to prevent black screen.
+      this.scene.start('MainGameScene', { isPreview: false, mapData: null });
+  }
+
+  private handleInputEnable(enabled: boolean) {
+      if (enabled) {
+          this.handleInputBlur(); // Re-enable controls
+      } else {
+          this.handleInputFocus(); // Disable controls & Clear Captures
+      }
   }
 
   // Global State
@@ -193,8 +241,185 @@ export class EditorScene extends Phaser.Scene {
       this.controls.update(delta);
   }
 
+  // Dirty State
+  private _isDirty: boolean = false;
+
+  public get isDirty(): boolean {
+      return this._isDirty;
+  }
+
+  public setClean() {
+      this._isDirty = false;
+      EventBus.emit('editor-clean-state');
+  }
+
+  public markDirty() {
+      if (!this._isDirty) {
+          this._isDirty = true;
+          EventBus.emit('editor-dirty-state');
+      }
+  }
+  
+  // --- ACCESSORS For Serializer ---
+  
+  public getMapDimensions() {
+      return { width: this.mapWidth, height: this.mapHeight, tileSize: this.TILE_SIZE };
+  }
+
+  public getTiles() {
+      const tiles: {x: number, y: number, index: number}[] = [];
+      this.tiles.forEach((tile, key) => {
+          // Parse key "x,y"
+          const parts = key.split(',');
+          const tx = parseInt(parts[0]);
+          const ty = parseInt(parts[1]);
+          // Determine index based on texture key
+          let idx = 0;
+          if (tile.texture.key === 'editor_wall') idx = 1;
+          else if (tile.texture.key === 'editor_water') idx = 2;
+          else if (tile.texture.key === 'editor_grass') idx = 3;
+          // default floor is 0 (implicit) or explicitly saved? 
+          // If we used editor_floor -> 4? 
+          // For now let's map: 
+          // editor_floor (implicit base) -> 0? But 0 usually means empty. 
+          // Let's assume editor_floor is index 5 or treat as 0 if we assume default floor.
+          // In serialize logic: if index > 0 it saves.
+          else if (tile.texture.key === 'editor_floor') idx = 4; 
+          
+          tiles.push({ 
+              x: tx * this.TILE_SIZE, 
+              y: ty * this.TILE_SIZE, 
+              index: idx 
+          });
+      });
+      return tiles;
+  }
+
+  public getEditorObjects(): EditorObject[] {
+      return Array.from(this.editorObjects.values());
+  }
+
+  public clearEditor() {
+      // Clear Tiles
+      this.tiles.forEach(t => t.destroy());
+      this.tiles.clear();
+      
+      // Clear Objects
+      this.editorObjects.forEach(o => o.sprite.destroy());
+      this.editorObjects.clear();
+      this.selectedObject = null;
+      
+      // Reset Grid
+      this.mapWidth = 50; 
+      this.mapHeight = 50;
+      this.createGrid();
+      
+      this.markDirty();
+  }
+
+  public handleMapResize(data: { width: number, height: number }) {
+      this.mapWidth = data.width;
+      this.mapHeight = data.height;
+      this.createGrid();
+      this.markDirty();
+  }
+
+  public paintTileAtGrid(gx: number, gy: number, index: number) {
+      // Reuse internal logic but bypass tool check
+      // We need a way to set tile by index directly
+      const key = `${gx},${gy}`;
+      
+      // If valid existing, destroy
+      if (this.tiles.has(key)) {
+          this.tiles.get(key)!.destroy();
+      }
+      
+      // Get texture
+      const texture = this.getTextureKey(index);
+      if (texture) {
+          const tile = this.add.image(gx * this.TILE_SIZE + 16, gy * this.TILE_SIZE + 16, texture);
+          this.tiles.set(key, tile);
+      }
+  }
+
+  public restoreObject(data: any) {
+     // Re-create object
+     // We can reuse placeObject logic but we need to bypass "currentTool" and "pointer"
+     // Refactor createObject visual logic
+     
+     const { id, type, x, y, width, height, properties, scripts } = data;
+     
+     // Visuals
+     const container = this.add.container(x, y);
+     const gfx = this.add.graphics();
+     
+     let w = width;
+     let h = height;
+
+      if (type === 'TriggerZone') {
+          gfx.lineStyle(2, 0xffff00, 1);
+          gfx.fillStyle(0xffff00, 0.2); 
+          const radius = properties.radius || 32;
+          gfx.strokeCircle(0, 0, radius);
+          gfx.fillCircle(0, 0, radius);
+      } else if (type === 'CustomObject') {
+          const color = parseInt((properties.color || '#888888').replace('#', '0x'));
+          gfx.lineStyle(2, 0xffffff, 1);
+          gfx.fillStyle(color, 0.8);
+          gfx.strokeRect(-w/2, -h/2, w, h);
+          gfx.fillRect(-w/2, -h/2, w, h);
+      } else if (type === 'Spawner') gfx.fillStyle(0xff0000, 0.7);
+      else if (type === 'SpawnPoint') gfx.fillStyle(0x00ffff, 0.7);
+      else if (type === 'Barricade') gfx.fillStyle(0x8B4513, 0.7);
+      else if (type === 'Door') gfx.fillStyle(0x888888, 0.7);
+      else if (type === 'MysteryBox') gfx.fillStyle(0x0000ff, 0.7);
+      else if (type === 'PerkMachine') gfx.fillStyle(0x00ff00, 0.7);
+      else gfx.fillStyle(0xaaaaaa, 0.7);
+      
+      if (type !== 'TriggerZone') {
+          gfx.fillRect(-w/2, -h/2, w, h);
+          // Face
+          gfx.fillStyle(0xffffff, 0.8);
+          gfx.fillRect((w/2) - 4, -2, 4, 4);
+      }
+
+      const label = properties.name || type.substring(0, 4);
+      const text = this.add.text(0, 0, label, { fontSize: '10px', color: '#ffffff' });
+      text.setOrigin(0.5);
+      
+      container.add([gfx, text]);
+      container.setSize(w, h);
+      
+      // Rotation
+      // Note: container rotation is in radians usually, but we might store degrees?
+      // Check placeObject... checking... `properties.rotation` usually. 
+      // If we use container.rotation it rotates visuals.
+      // properties.rotation is just data.
+      // Let's ensure visuals match properties if needed? 
+      // Current implementation doesn't visibly rotate container unless we act on it. 
+      
+      const obj: EditorObject = {
+          id,
+          type,
+          x,
+          y,
+          rotation: properties.rotation || 0,
+          width: w,
+          height: h,
+          sprite: container,
+          properties,
+          scripts: scripts || []
+      };
+      this.editorObjects.set(id, obj);
+  }
+
   shutdown() {
-      // ... (existing cleanup)
+      console.log("EditorScene: Shutdown");
+      // Input
+      if (this.controls) this.controls.stop(); 
+      this.input.removeAllListeners();
+
+      // Remove Listeners
       EventBus.off('editor-tool-change', this.handleToolChange, this);
       EventBus.off('editor-map-resize', this.handleMapResize, this);
       EventBus.off('editor-brush-update', this.handleBrushUpdate, this);
@@ -208,9 +433,29 @@ export class EditorScene extends Phaser.Scene {
       EventBus.off('editor-update-globals', this.handleGlobalUpdate, this);
       EventBus.off('editor-input-focus', this.handleInputFocus, this);
       EventBus.off('editor-input-blur', this.handleInputBlur, this);
-      EventBus.off('exit-game');
+      EventBus.off('editor-command-import', this.handleImportProject, this);
+      EventBus.off('editor-command-preview', this.handlePreviewMap, this);
+      
+      // I/O
+      EventBus.off('editor-command-save', this.handleSaveProject, this);
+      EventBus.off('editor-command-save-file', this.handleSaveFile, this);
+      EventBus.off('editor-command-export', this.handleExportProject, this);
+      
+      EventBus.off('editor-input-enable', this.handleInputEnable, this);
+      EventBus.off('exit-game', this.handleExit, this);
+      EventBus.off('start-game', this.handleAutoShutdown, this);
+      
+      // Properly Destroy Tiles
+      this.tiles.forEach(t => t.destroy());
       this.tiles.clear();
-      if (this.cursorGraphics) this.cursorGraphics.clear();
+      
+      if (this.cursorGraphics) this.cursorGraphics.destroy();
+      if (this.gridGraphics) this.gridGraphics.destroy();
+      
+      // Destroy Editors Objects
+      this.editorObjects.forEach(o => o.sprite.destroy());
+      this.editorObjects.clear();
+      this.selectedObject = null;
   }
   
   private createEditorTextures() {
@@ -242,25 +487,40 @@ export class EditorScene extends Phaser.Scene {
 
       // Water (Blue with details)
       if (!this.textures.exists('editor_water')) {
-          const g = this.make.graphics({x:0, y:0});
-          g.fillStyle(0x004488); // Deep Blue
-          g.fillRect(0,0,32,32);
-          
-          g.fillStyle(0x0088BB, 0.6); // Light Blue details
-          g.fillCircle(8, 8, 4);
-          g.fillCircle(24, 24, 6);
-          g.fillCircle(24, 8, 2);
-          
-          // Wave line
-          g.lineStyle(1, 0x0088BB, 0.8);
-          g.beginPath();
-          g.moveTo(5, 20);
-          g.lineTo(10, 25);
-          g.lineTo(15, 20);
-          g.strokePath();
+          const canvas = this.textures.createCanvas('editor_water', 32, 32);
+          if (canvas) {
+              const ctx = canvas.getContext();
+              
+              // Gradient
+              const grd = ctx.createLinearGradient(0, 0, 0, 32);
+              grd.addColorStop(0, '#0055AA');
+              grd.addColorStop(1, '#003388');
+              ctx.fillStyle = grd;
+              ctx.fillRect(0,0,32,32);
 
-          g.generateTexture('editor_water', 32, 32);
-          g.destroy();
+              // Ripple lines
+              ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              
+              // Wave 1
+              ctx.moveTo(2, 8); ctx.quadraticCurveTo(8, 4, 14, 8);
+              // Wave 2
+              ctx.moveTo(18, 14); ctx.quadraticCurveTo(24, 10, 30, 14);
+              // Wave 3
+              ctx.moveTo(6, 24); ctx.quadraticCurveTo(12, 20, 18, 24);
+              ctx.stroke();
+              
+              // Highlights
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+              ctx.beginPath();
+              ctx.arc(4, 4, 1, 0, Math.PI*2);
+              ctx.arc(28, 20, 1, 0, Math.PI*2);
+              ctx.arc(12, 16, 2, 0, Math.PI*2);
+              ctx.fill();
+              
+              canvas.refresh();
+          }
       }
 
       // Grass (Green)
@@ -301,11 +561,65 @@ export class EditorScene extends Phaser.Scene {
     this.gridGraphics.setDepth(100); // Grid on top
   }
 
-  private handleMapResize(data: { width: number, height: number }) {
-      this.mapWidth = data.width;
-      this.mapHeight = data.height;
-      this.createGrid();
+  // --- I/O Handlers ---
+
+  private async handleSaveProject(data: { name: string }) {
+      try {
+          const mapData = MapSerializer.serialize(this, data.name);
+          await ProjectStorage.saveProject(mapData);
+          EventBus.emit('editor-save-success', data.name);
+          this.setClean();
+      } catch (err) {
+          console.error(err);
+          EventBus.emit('editor-io-error', 'Failed to Save Project');
+      }
   }
+  
+  private async handleSaveFile(data: { name: string }) {
+      try {
+          const mapData = MapSerializer.serialize(this, data.name);
+          // Download as Editor Format (.editor.json)
+          await ProjectStorage.downloadProject(mapData, 'editor'); 
+          EventBus.emit('editor-save-success', data.name); // Using save success for notification
+          this.setClean();
+      } catch (err) {
+          console.error(err);
+          EventBus.emit('editor-io-error', 'Failed to Download File');
+      }
+  }
+
+  private async handleExportProject(data: { name: string }) {
+      try {
+          const mapData = MapSerializer.serialize(this, data.name);
+          // Download as Game Format (.game.json)
+          await ProjectStorage.downloadProject(mapData, 'game'); 
+          EventBus.emit('editor-export-success');
+      } catch (err) {
+          console.error(err);
+          EventBus.emit('editor-io-error', 'Failed to Export Project');
+      }
+  }
+
+  private handleImportProject(data: any) { // MapData
+      try {
+          MapSerializer.deserialize(this, data);
+          this.setClean(); 
+      } catch (e) {
+          console.error(e);
+          EventBus.emit('editor-io-error', 'Failed to Load Map Data');
+      }
+  }
+
+  private handlePreviewMap() {
+    const editorData = MapSerializer.serialize(this, "Preview");
+    const gameData = MapSerializer.translateToGameFormat(editorData);
+    this.scene.start('MainGameScene', { 
+        mapData: gameData, 
+        isPreview: true 
+    });
+  }
+
+
 
   private handlePointerDown(pointer: Phaser.Input.Pointer) {
     if (pointer.middleButtonDown()) {
@@ -446,6 +760,7 @@ export class EditorScene extends Phaser.Scene {
           if (this.tiles.has(key)) {
               this.tiles.get(key)!.destroy();
               this.tiles.delete(key);
+              this.markDirty();
           }
       } else {
           const existing = this.tiles.get(key);
@@ -456,6 +771,7 @@ export class EditorScene extends Phaser.Scene {
           }
           const tile = this.add.image(tileX * this.TILE_SIZE + 16, tileY * this.TILE_SIZE + 16, texture);
           this.tiles.set(key, tile);
+          this.markDirty();
       }
   }
 
@@ -721,6 +1037,7 @@ export class EditorScene extends Phaser.Scene {
 
       this.editorObjects.set(id, obj);
       this.selectedObject = obj;
+      this.markDirty();
       EventBus.emit('editor-object-selected', { ...obj, sprite: undefined, scripts: [] });
       
       // Auto-switch to Select Mode (unless CTRL is held)
@@ -738,6 +1055,7 @@ export class EditorScene extends Phaser.Scene {
     
     if (!obj.scripts) obj.scripts = [];
     obj.scripts.push(data.script);
+    this.markDirty();
     
     // Refresh selection to show new script
     if (this.selectedObject && this.selectedObject.id === data.id) {
@@ -757,6 +1075,7 @@ export class EditorScene extends Phaser.Scene {
       if (!obj || !obj.scripts) return;
       
       obj.scripts[data.index] = data.script;
+      this.markDirty();
       
       if (this.selectedObject && this.selectedObject.id === data.id) {
           EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
@@ -768,6 +1087,7 @@ export class EditorScene extends Phaser.Scene {
       if (!obj || !obj.scripts) return;
       
       obj.scripts.splice(data.index, 1);
+      this.markDirty();
       
       if (this.selectedObject && this.selectedObject.id === data.id) {
           EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });

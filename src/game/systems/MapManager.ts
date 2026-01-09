@@ -47,7 +47,15 @@ export class MapManager {
             height: mapData.height,
         });
 
-        this.tileset = this.map.addTilesetImage('tileset', undefined, 32, 32, 0, 0)!;
+        // Use procedural_tileset as the texture key
+        this.tileset = this.map.addTilesetImage('tileset', 'procedural_tileset', 32, 32, 0, 0)!;
+
+        // Fallback for debugging
+        if (!this.tileset) {
+            console.error("Failed to load tileset 'procedural_tileset'");
+            // Try loading default just in case
+            this.tileset = this.map.addTilesetImage('tileset', undefined, 32, 32, 0, 0)!;
+        }
 
         if (!this.tileset) {
             console.error("Failed to load tileset 'tileset'");
@@ -58,13 +66,21 @@ export class MapManager {
         if (this.floorLayer) {
              this.populateLayer(this.floorLayer, mapData.layers.floor);
              this.floorLayer.setDepth(-10); 
+             // Enable Collision for Water (Index 2)
+             this.floorLayer.setCollision(2);
         }
 
         this.wallLayer = this.map.createBlankLayer('Walls', this.tileset)!;
         if (this.wallLayer) {
+            console.log("MapManager: WallLayer created", { 
+                layer: !!this.wallLayer.layer, 
+                data: this.wallLayer.layer ? !!this.wallLayer.layer.data : false 
+            });
             this.populateLayer(this.wallLayer, mapData.layers.walls);
             this.wallLayer.setDepth(1); 
             this.wallLayer.setCollision(1);
+        } else {
+            console.error("MapManager: Failed to create WallLayer");
         }
 
         return {
@@ -251,12 +267,27 @@ export class MapManager {
                      const tileId = data[y][x];
                      
                      // Improve: Only skip 0 for 'Walls' layer to prevent invisible collisions.
-                     // Allow 0 for other layers (like Floor) if 0 represents a valid tile.
                      if (tileId !== 0 || layer.layer.name !== 'Walls') {
-                        layer.putTileAt(tileId, x, y);
+                         try {
+                            layer.putTileAt(tileId, x, y);
+                         } catch (e) {
+                            console.error(`MapManager: Tile Put Error at ${x},${y} with ID ${tileId}. Tileset Total: ${this.tileset?.total}`, e);
+                         }
                      }
                 }
             }
         }
+    }
+    public destroy() {
+        if (this.floorLayer) this.floorLayer.destroy();
+        if (this.wallLayer) this.wallLayer.destroy();
+        if (this.map) this.map.destroy();
+        
+        this.floorLayer = undefined;
+        this.wallLayer = undefined;
+        this.map = undefined;
+        this.tileset = undefined;
+        this.currentMap = null;
+        console.log("MapManager: Destroyed");
     }
 }

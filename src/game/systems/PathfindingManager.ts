@@ -28,6 +28,7 @@ export class PathfindingManager {
         this.grid = [];
         
         const wallLayer = tilemap.getLayer('Walls');
+        const floorLayer = tilemap.getLayer('Floor');
 
         if (!wallLayer) {
             console.error("PathfindingManager: Wall layer not found!");
@@ -38,7 +39,13 @@ export class PathfindingManager {
             const row: number[] = [];
             for (let x = 0; x < width; x++) {
                 const wallTile = wallLayer.data[y][x];
-                if (wallTile && wallTile.index !== -1 && wallTile.index !== 0) {
+                const floorTile = floorLayer ? floorLayer.data[y][x] : null;
+                
+                // Block if Wall (index 1) OR Water (index 2 on floor)
+                const isWall = wallTile && wallTile.index !== -1 && wallTile.index !== 0;
+                const isWater = floorTile && floorTile.index === 2;
+                
+                if (isWall || isWater) {
                      row.push(1); 
                 } else {
                      row.push(0);

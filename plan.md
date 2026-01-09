@@ -124,8 +124,13 @@
     *   Implement "Save Project": Serialize map to JSON -> Store in `localForage`.
     *   Implement "Export/Import": Download/Upload `.json` files (validated by Zod). create export and improter which read the files and use the internal logic to use the game engine to use the created assets in game, to translate the editor map to a real game map, similar to defaultmap, here needs good translator.
     *   Implement "Load Project": Deserialize map from JSON -> Load into EditorScene. + high security with analyzer for malicious code, high security robust. load also all textures and assets, eg for custom objects.
-    *   Implement "Preview": here load the map data into a real game to test everything, with esc menu or death return to editor agian. here add preview button to top menu bar. this button will render the game using the ingame renderer but uses map data of the editor as map
+    *   Implement "Preview": here load the map data into a real game to test everything, with esc menu or death, add option return to editor agian. here add preview button to top menu bar. this button will render the game using the ingame renderer but uses map data of the editor as map. to play preview, map has to be saved first. and validated.
+    *   Implement also bedite Preview a Validation button this checks the mapp data for errors, checks all scripts and runs also the process to translate the editor map to a real game map, similar to defaultmap, here needs good translator. this will show also errors and warnings in a extra modal window.
 
+*   **Step 5: History Undo/Redo**
+    *   Implement "History": Implement undo/redo functionality for map changes. this allows all new updates while editing to be undone and redone. dont save or export history, only keep it in memory.
+    *   Implement "History" UI: Show history in a sidebar as new tab. allow to select a specific history entry and apply it to the map. + add forward and backward buttons to navigate through history into the top menu bar perfectly in the middle, inbetween the Beta Label and save button.
+    
 ---
 
 ## Phase 5: Profiles & Persistence

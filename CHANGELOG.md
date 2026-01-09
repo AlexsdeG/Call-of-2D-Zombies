@@ -3,6 +3,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-01-09 - Phase 4 Step 4.4 (Map Serialization)
+### Added
+- **File I/O**:
+  - `src/game/systems/MapSerializer.ts`: Added Map Serialization and Deserialization logic.
+  - `src/game/systems/MapManager.ts`: Added Map Loading and Saving logic.
+  - Preview Map in Editor.
+
 ## [0.1.21] - 2026-01-08 - Phase 4 Step 4.3 (Scripting System)
 ### Added
 - **Scripting Engine**:

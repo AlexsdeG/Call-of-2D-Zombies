@@ -50,7 +50,7 @@ const MainMenu = () => {
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
       <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 4.2: Object Placement & Configuration</p>
+      <p className="text-gray-400 mb-8">Phase 4.4: File I/O Part 1</p>
       <div className="flex gap-4">
         <button 
           onClick={startGame}
@@ -160,7 +160,7 @@ const DebugOverlay = () => {
   return (
     <div className="absolute bottom-0 right-0 p-2 bg-black/50 text-green-400 font-mono text-xs pointer-events-auto z-50 flex flex-col items-end gap-2">
       <div>FPS: {fps}</div>
-      <div>VER: 0.1.18</div>
+      <div>VER: 0.2.0</div>
       <button 
         onClick={runTests}
         className="px-2 py-1 bg-blue-900/50 hover:bg-blue-800 text-blue-200 border border-blue-700 rounded text-[10px]"

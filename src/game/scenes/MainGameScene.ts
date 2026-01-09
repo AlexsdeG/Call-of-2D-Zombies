@@ -56,6 +56,7 @@ export class MainGameScene extends Phaser.Scene {
   // Interactable Group - Normal Group (Not Physics) to store references for Player interaction
   private interactableGroup!: Phaser.GameObjects.Group;
 
+  private floorLayer?: Phaser.Tilemaps.TilemapLayer;
   private wallLayer?: Phaser.Tilemaps.TilemapLayer;
   private targetLayer!: Phaser.GameObjects.Layer;
 
@@ -72,12 +73,20 @@ export class MainGameScene extends Phaser.Scene {
   private onRestartGame: () => void;
   private onGameOver: () => void;
 
+  // Preview Mode State
+  private isPreview: boolean = false;
+  private previewMapData?: any;
+
   constructor() {
     super({ key: 'MainGameScene' });
     
     this.onExitGame = () => {
         this.scene.stop();
-        this.scene.start('MenuScene');
+        if (this.isPreview) {
+            this.scene.start('EditorScene'); // Return to Editor
+        } else {
+            this.scene.start('MenuScene');
+        }
         this.input.setDefaultCursor('default');
     };
 
@@ -106,14 +115,55 @@ export class MainGameScene extends Phaser.Scene {
     };
   }
 
+  init(data: { isPreview?: boolean, mapData?: any }) {
+      // Force stop EditorScene to prevent "Ghost Editor" / State Leakage
+      this.scene.stop('EditorScene');
+
+      if (data && data.isPreview) {
+          this.isPreview = true;
+          this.previewMapData = data.mapData;
+      } else {
+          // Single Player / Default Loading
+          this.isPreview = false;
+          this.previewMapData = undefined; // CLEAR IT
+      }
+      console.log('MainGameScene: Init', { isPreview: this.isPreview });
+  }
+
   create() {
     console.log('MainGameScene: Created');
+    
+    // Safety: Reset Camera Effects/state from potentially dirty Editor state
+    this.cameras.main.setBackgroundColor('#000000');
+    this.cameras.main.setZoom(1);
+    this.cameras.main.setAngle(0);
+    this.cameras.main.setScroll(0, 0);
+    this.cameras.main.fadeIn(500); // Nice transition
+    
+    // Double check to ensure Editor is dead
+    if (this.scene.get('EditorScene').scene.isActive()) {
+        console.warn('MainGameScene: Detected active EditorScene, forcing stop.');
+        this.scene.stop('EditorScene');
+    }
+
+    // Initialize Target Layer for Vision System (Zombies/Enemies)
+    this.targetLayer = this.add.layer();
+    this.targetLayer.setDepth(10); 
+    
     this.isGameOver = false;
     this.physics.resume(); 
     this.input.setDefaultCursor('none');
     
     // Clear any previous spawners
     this.spawners = [];
+    this.crates = [];
+    this.targets = [];
+    this.customWalls = [];
+
+
+    // Events Cleanup & Setup
+    this.events.off('shutdown');
+    this.events.on('shutdown', this.shutdown, this);
 
     // Events Cleanup & Setup
     this.events.off('shutdown');
@@ -244,8 +294,10 @@ export class MainGameScene extends Phaser.Scene {
 
     // 1.5 Textures
     this.createBackground();
+    this.createTilesetTexture(); // Create tileset for MapManager
     this.createCrateTexture();
     this.createTargetTexture();
+
     this.createCustomWallTexture();
 
     // 2. Create Player First
@@ -255,10 +307,18 @@ export class MainGameScene extends Phaser.Scene {
     // Inject ScriptEngine into Player for OnInteract triggers (if needed later) or handled via Scene
     
     // 3. Load Map
-    const valid = this.mapManager.validate(DEBUG_MAP);
+    let valid;
+    
+    if (this.isPreview && this.previewMapData) {
+        valid = this.mapManager.validate(this.previewMapData);
+    } else {
+        valid = this.mapManager.validate(DEBUG_MAP);
+    }
+    
     if (valid.success && valid.data) {
         const layers = this.mapManager.createLevel(valid.data);
         this.wallLayer = layers.walls;
+        this.floorLayer = layers.floor;
         
         if (this.wallLayer) this.player.weaponSystem.setWalls(this.wallLayer);
 
@@ -410,50 +470,74 @@ export class MainGameScene extends Phaser.Scene {
   }
 
   shutdown() {
-      // Clean up SPECIFIC listeners only
-      EventBus.off('exit-game', this.onExitGame);
-      EventBus.off('restart-game', this.onRestartGame);
+      console.log("MainGameScene: Shutdown (Merged)");
+
+      // 1. Stop Core Systems
+      // Stop Logic/Physics immediately to prevent updates on destroyed objects
+      this.physics.pause();
+      this.time.removeAllEvents();
+      this.tweens.killAll();
+      if (this.fpsEvent) this.fpsEvent.destroy();
+
+      // 2. Remove Listeners
+      // Local Scene Events
       this.events.off('game-over', this.onGameOver);
-      
       this.events.off('bullet-hit-wall');
       this.events.off('show-damage-text');
+      
+      // Global EventBus Events - Remove specific handlers or all for this scene context
+      EventBus.off('exit-game', this.onExitGame);
+      EventBus.off('restart-game', this.onRestartGame);
       EventBus.off('weapon-switch');
       EventBus.off('spawn-powerup');
-      EventBus.off('trigger-carpenter');
       EventBus.off('trigger-carpenter');
       EventBus.off('trigger-nuke');
       EventBus.off('trigger-firesale');
       EventBus.off('pause-game');
       EventBus.off('resume-game');
+      // If we bound anonymous functions for some events (like debug-fps), we might not be able to off specific ones easily without reference.
+      // Ideally show-notification etc are global.
       
-      // Stop all Timers and Tweens to prevent "accessing property of undefined" errors
-      this.time.removeAllEvents();
-      this.tweens.killAll();
+      // 3. Destroy Managers
+      if (this.mapManager) this.mapManager.destroy();
+      if (this.visionManager) this.visionManager.destroy();
       
-      if (this.fpsEvent) this.fpsEvent.destroy();
-      
-      // Destroy Systems & Entities explicitly
-      if (this.player) {
-          this.player.destroy();
-      }
-      if (this.visionManager && typeof this.visionManager.destroy === 'function') {
-          this.visionManager.destroy();
-      }
-      if (this.crosshair) {
-          this.crosshair.destroy();
-      }
-
-      // Clear data managers
-      this.spawners = [];
-      if (this.interactableGroup) this.interactableGroup.clear(true, true);
-      if (this.zombieGroup) this.zombieGroup.clear(true, true);
-      if (this.bulletGroup) this.bulletGroup.clear(true, true);
-      if (this.powerUpGroup) this.powerUpGroup.clear(true, true);
-      
+      // 4. Reset Static/Global Systems
       MysteryBox.reset();
 
+      // 5. Destroy Entities
+      if (this.player) this.player.destroy();
+      if (this.crosshair) this.crosshair.destroy();
+      if (this.targetLayer) this.targetLayer.destroy();
+
+      // 6. Clear Groups
+      const groups = [
+          this.bulletGroup, this.obstacleGroup, this.targetGroup, this.zombieGroup,
+          this.customWallGroup, this.doorGroup, this.barricadeGroup, this.wallBuyGroup,
+          this.mysteryBoxGroup, this.perkMachineGroup, this.packAPunchGroup, this.powerUpGroup
+      ];
+      
+      groups.forEach(g => {
+          if (g) g.clear(true, true);
+      });
+      
+      if (this.interactableGroup) this.interactableGroup.clear(true, true);
+      
+      // Clear Arrays
+      this.spawners = [];
+      this.crates = [];
+      this.targets = [];
+      this.customWalls = [];
+
+      // 7. Reset Input
       this.input.setDefaultCursor('default');
-      console.log('MainGameScene: Shutdown complete');
+      this.input.removeAllListeners();
+
+      // 8. State Cleanup
+      this.isPreview = false;
+      this.previewMapData = undefined;
+      
+      console.log('MainGameScene: Shutdown Complete');
   }
 
   update(time: number, delta: number) {
@@ -553,11 +637,27 @@ export class MainGameScene extends Phaser.Scene {
   private setupCollisions() {
       // Walls
       if (this.wallLayer) {
-        this.physics.add.collider(this.player, this.wallLayer);
-        this.physics.add.collider(this.zombieGroup, this.wallLayer);
-        this.physics.add.collider(this.bulletGroup, this.wallLayer, (bullet, wallTile) => {
-             if (wallTile instanceof Phaser.Tilemaps.Tile) this.handleBulletImpact(bullet as Projectile);
-        });
+        if (!this.wallLayer.layer || !this.wallLayer.layer.data) {
+             console.error("MainGameScene: WallLayer invalid in setupCollisions", this.wallLayer);
+        } else {
+             console.log("MainGameScene: Setup Wall Collisions - Layer Valid", { width: this.wallLayer.width, tiles: this.wallLayer.layer.data.length });
+             
+             // Register Colliders ONLY if Valid
+             this.physics.add.collider(this.player, this.wallLayer);
+             this.physics.add.collider(this.zombieGroup, this.wallLayer);
+             this.physics.add.collider(this.bulletGroup, this.wallLayer, (bullet, wallTile) => {
+                  if (wallTile instanceof Phaser.Tilemaps.Tile) this.handleBulletImpact(bullet as Projectile);
+             });
+        }
+      } else {
+          console.warn("MainGameScene: WallLayer missing in setupCollisions");
+      }
+
+      // Floor (Water) Collision
+      if (this.floorLayer) {
+           this.physics.add.collider(this.player, this.floorLayer);
+           this.physics.add.collider(this.zombieGroup, this.floorLayer);
+           // NOTE: Do NOT add bullet collider here. Bullets pass over water.
       }
 
       // Static Groups
@@ -726,7 +826,94 @@ export class MainGameScene extends Phaser.Scene {
     graphics.fillRect(0, 0, 16, 16);
     graphics.lineStyle(1, 0x333333);
     graphics.strokeRect(0, 0, 16, 16);
-    graphics.generateTexture('wall_custom', 16, 16);
     graphics.destroy();
-  }
+   }
+
+   private createTilesetTexture() {
+       // Force update if it exists
+       if (this.textures.exists('procedural_tileset')) {
+           this.textures.remove('procedural_tileset');
+       }
+       
+       // Create a strip of 5 tiles: [Empty, Wall, Water, Grass, Floor]
+       const canvas = this.textures.createCanvas('procedural_tileset', 32 * 5, 32);
+       if (!canvas) return;
+       
+       const ctx = canvas.getContext();
+       
+       // Index 0: Empty (Transparent)
+       
+       // Index 1: Wall (Brick Pattern)
+       const wx = 32;
+       ctx.fillStyle = '#5D2906'; // Dark Brown Background (Mortar)
+       ctx.fillRect(wx, 0, 32, 32);
+       ctx.fillStyle = '#8B4513'; // Brick Color
+       // Draw Bricks
+       // Row 1
+       ctx.fillRect(wx, 0, 14, 10); ctx.fillRect(wx + 16, 0, 14, 10);
+       // Row 2 (Offset)
+       ctx.fillRect(wx, 12, 6, 8); ctx.fillRect(wx + 8, 12, 14, 8); ctx.fillRect(wx + 24, 12, 6, 8);
+       // Row 3
+       ctx.fillRect(wx, 22, 14, 10); ctx.fillRect(wx + 16, 22, 14, 10);
+       
+       // Index 2: Water (Waves)
+       const wax = 64;
+       // Gradient Background
+       const grd = ctx.createLinearGradient(wax, 0, wax, 32);
+       grd.addColorStop(0, '#006994'); // Light Sea Blue
+       grd.addColorStop(1, '#003366'); // Deep Blue
+       ctx.fillStyle = grd;
+       ctx.fillRect(wax, 0, 32, 32);
+       
+       // Shine/Glint
+       ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+       ctx.beginPath();
+       ctx.arc(wax + 24, 6, 4, 0, Math.PI * 2);
+       ctx.fill();
+       
+       // Texture / Ripples
+       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+       ctx.lineWidth = 1.5;
+       ctx.beginPath();
+       
+       // Draw organic waves
+       const drawWave = (offsetY: number, phase: number) => {
+           for (let x = 0; x <= 32; x++) {
+               const y = Math.sin((x + phase) * 0.2) * 2 + offsetY;
+               if (x === 0) ctx.moveTo(wax + x, y);
+               else ctx.lineTo(wax + x, y);
+           }
+       };
+       
+       drawWave(10, 0);
+       drawWave(18, 10);
+       drawWave(26, 5);
+       
+       ctx.stroke();
+
+       
+       // Index 3: Grass (Noise/Tufts)
+       const gx = 96;
+       ctx.fillStyle = '#1a4a1a'; // Darker Base Green
+       ctx.fillRect(gx, 0, 32, 32);
+       ctx.fillStyle = '#2d6e2d'; // Lighter Grass
+       for(let i=0; i<40; i++) {
+           const rx = Math.random() * 32;
+           const ry = Math.random() * 32;
+           ctx.fillRect(gx + rx, ry, 2, 2);
+       }
+       
+       // Index 4: Floor (Stone Tiles)
+       const fx = 128;
+       ctx.fillStyle = '#333333'; // Dark Grey
+       ctx.fillRect(fx, 0, 32, 32);
+       ctx.strokeStyle = '#444444'; // Light outline
+       ctx.lineWidth = 2;
+       ctx.strokeRect(fx + 2, 2, 13, 13);
+       ctx.strokeRect(fx + 17, 2, 13, 13);
+       ctx.strokeRect(fx + 2, 17, 13, 13);
+       ctx.strokeRect(fx + 17, 17, 13, 13);
+       
+       canvas.refresh();
+   }
 }

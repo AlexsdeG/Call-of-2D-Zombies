@@ -1,10 +1,169 @@
 import React from 'react';
-import { useGameStore } from '../../../store/useGameStore'; // Adjusted path
+import { useGameStore } from '../../../store/useGameStore';
 import { GameState } from '../../../types';
 import { EditorSidebar } from './EditorSidebar';
+import { EventBus } from '../../EventBus';
+import { EditorScene } from '../../scenes/EditorScene';
+import { MapSerializer } from '../../systems/MapSerializer';
+import { ProjectStorage } from '../../storage/ProjectStorage';
+import { SecurityAnalyzer } from '../../../utils/SecurityAnalyzer';
+
+import { LoadMapModal } from '../Modals/LoadMapModal';
+import { SaveMapModal } from '../Modals/SaveMapModal';
+import { ExitWarningModal } from '../Modals/ExitWarningModal';
+
+// ... (existing imports)
 
 export const EditorOverlay = () => {
   const setGameState = useGameStore((state) => state.setGameState);
+  
+  // State
+  const [notification, setNotification] = React.useState<{msg: string, type: 'success'|'error'}| null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  
+  // Modal State
+  const [showSaveModal, setShowSaveModal] = React.useState(false);
+  const [showLoadModal, setShowLoadModal] = React.useState(false);
+  const [showExitModal, setShowExitModal] = React.useState(false);
+  const [currentMapName, setCurrentMapName] = React.useState("Untitled Map");
+  
+  // Listeners
+  React.useEffect(() => {
+      const onSaveSuccess = (mapName?: string) => {
+          setNotification({ msg: "Project Saved!", type: 'success' });
+          setHasUnsavedChanges(false);
+          if (mapName) setCurrentMapName(mapName);
+          setTimeout(() => setNotification(null), 2000);
+      };
+      
+      const onLoadSuccess = (data: any) => {
+          setNotification({ msg: "Project Loaded!", type: 'success' });
+          setHasUnsavedChanges(false); 
+          if (data && data.name) setCurrentMapName(data.name);
+          setTimeout(() => setNotification(null), 2000);
+      };
+      
+      const onExportSuccess = () => {
+          setNotification({ msg: "Project Exported!", type: 'success' });
+          setTimeout(() => setNotification(null), 2000);
+      };
+      
+      const onImportSuccess = () => {
+           setNotification({ msg: "Import Successful!", type: 'success' });
+           setHasUnsavedChanges(true); 
+           setTimeout(() => setNotification(null), 2000);
+      };
+
+      const onError = (msg: string) => {
+          setNotification({ msg: msg, type: 'error' });
+          setTimeout(() => setNotification(null), 3000);
+      };
+      
+      const onContentChange = () => setHasUnsavedChanges(true);
+      const onCleanState = () => setHasUnsavedChanges(false);
+      const onDirtyState = () => setHasUnsavedChanges(true);
+      
+      EventBus.on('editor-save-success', onSaveSuccess);
+      EventBus.on('editor-load-success', onLoadSuccess);
+      EventBus.on('editor-export-success', onExportSuccess);
+      EventBus.on('editor-import-success', onImportSuccess);
+      EventBus.on('editor-io-error', onError);
+      
+      EventBus.on('editor-dirty-state', onDirtyState);
+      EventBus.on('editor-clean-state', onCleanState);
+      EventBus.on('editor-content-changed', onContentChange); 
+      
+      return () => {
+          EventBus.off('editor-save-success', onSaveSuccess);
+          EventBus.off('editor-load-success', onLoadSuccess);
+          EventBus.off('editor-export-success', onExportSuccess);
+          EventBus.off('editor-import-success', onImportSuccess);
+          EventBus.off('editor-io-error', onError);
+          EventBus.off('editor-dirty-state', onDirtyState);
+          EventBus.off('editor-clean-state', onCleanState);
+          EventBus.off('editor-content-changed', onContentChange); 
+      };
+  }, []);
+
+  // -- Handlers --
+  const onSaveClick = () => {
+      setShowSaveModal(true);
+  };
+
+  const executeSave = (name: string, destination: 'browser' | 'file') => {
+      if (destination === 'browser') {
+          EventBus.emit('editor-command-save', { name });
+      } else {
+          EventBus.emit('editor-command-export', { name });
+      }
+      setCurrentMapName(name); 
+  };
+
+  const saveAndExit = () => {
+      setShowExitModal(false);
+      setShowSaveModal(true);
+  };
+
+  const confirmExit = () => { 
+       setShowExitModal(false);
+       setGameState(GameState.MENU);
+  };
+
+  const handleExitRequest = () => {
+      if (hasUnsavedChanges) {
+          setShowExitModal(true);
+      } else {
+          setGameState(GameState.MENU);
+      }
+  };
+  
+  const handlePreview = () => EventBus.emit('editor-command-preview');
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+           try {
+               const json = JSON.parse(evt.target?.result as string);
+               const validation = MapSerializer.validate(json);
+               if (validation.success) {
+                   const report = SecurityAnalyzer.scanMapData(validation.data);
+                   if (!report.safe) {
+                       alert("Security Issue:\n" + report.issues.join('\n'));
+                       return;
+                   }
+                   EventBus.emit('editor-command-import', validation.data);
+                   EventBus.emit('editor-import-success');
+               } else {
+                   alert("Invalid Map JSON");
+               }
+           } catch (err) {
+               console.error(err);
+               alert("Failed to parse JSON");
+           }
+      };
+      reader.readAsText(file);
+      e.target.value = ''; 
+  };
+  
+  // 2. Load Flow
+  const handleLoadClick = () => setShowLoadModal(true);
+  
+  const executeLoad = (data: any) => {
+      // Data is already loaded (either from Local Storage or File Import)
+      if (data) {
+          EventBus.emit('editor-command-import', data);
+          EventBus.emit('editor-load-success', data);
+      } else {
+          setNotification({ msg: "Failed to load project", type: 'error' });
+      }
+  };
+
+  const handleExport = () => setShowSaveModal(true); 
+
+  // ... (rest)
 
   return (
     <div className="absolute inset-0 flex flex-col z-20 pointer-events-none">
@@ -13,20 +172,60 @@ export const EditorOverlay = () => {
           <div className="flex items-center gap-4">
               <h2 className="text-white font-bold tracking-wider text-sm flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  MAP EDITOR <span className="text-xs text-gray-500 bg-black/50 px-2 py-0.5 rounded">BETA 0.1</span>
+                  MAP EDITOR <span className="text-xs text-gray-500 bg-black/50 px-2 py-0.5 rounded">BETA 0.2.0</span>
               </h2>
           </div>
           
           <div className="flex items-center gap-2">
+               {hasUnsavedChanges && (
+                   <span className="text-red-400 text-xs font-mono mr-4 animate-pulse flex items-center gap-1">
+                       unsaved changes *
+                   </span>
+               )}
+
+               {notification && (
+                   <span className="text-green-400 text-xs font-mono mr-2 animate-pulse">{notification.msg}</span>
+               )}
               <button 
-                onClick={() => console.log('Save logic pending')}
-                className="px-4 py-1.5 bg-blue-700 hover:bg-blue-600 text-white rounded text-xs font-bold transition"
+                onClick={onSaveClick}
+                className="px-3 py-1 bg-blue-700 hover:bg-blue-600 text-white rounded text-xs transition"
               >
                   SAVE
               </button>
               <button 
-                onClick={() => setGameState(GameState.MENU)} 
-                className="px-4 py-1.5 bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-800 rounded text-xs font-bold transition"
+                onClick={handleLoadClick}
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition"
+              >
+                  LOAD
+              </button>
+              
+              <div className="w-px h-6 bg-gray-600 mx-1"></div>
+              
+              <button 
+                onClick={onSaveClick} // Reuse Save Modal for Export logic (handled by modal)
+                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition"
+              >
+                  EXPORT
+              </button>
+              <label className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition cursor-pointer">
+                  IMPORT
+                  <input type="file" onChange={handleImport} accept=".json" className="hidden" />
+              </label>
+              
+              <div className="w-px h-6 bg-gray-600 mx-2"></div>
+              
+               <button 
+                onClick={handlePreview}
+                className="px-3 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-xs font-bold transition flex items-center gap-1"
+              >
+                  <span>▶</span> PREVIEW
+              </button>
+              
+              <div className="w-px h-6 bg-gray-600 mx-2"></div>
+
+              <button 
+                onClick={handleExitRequest} 
+                className="px-3 py-1 bg-red-900/50 hover:bg-red-800 text-red-200 border border-red-800 rounded text-xs transition"
               >
                   EXIT
               </button>
@@ -41,8 +240,9 @@ export const EditorOverlay = () => {
                <div className="absolute bottom-4 left-4 pointer-events-none opacity-50">
                     <div className="text-xs text-white font-mono bg-black/50 p-2 rounded">
                         <div>WASD or MMB: Move Camera</div>
+                        <div>CTRL + LMB: Place multiple Objects</div>
                         <div>SCROLL or Q/E: Zoom</div>
-                        <div>LMB: Paint</div>
+                        <div>LMB: Paint/Place/Select</div>
                     </div>
                </div>
            </div>
@@ -50,6 +250,25 @@ export const EditorOverlay = () => {
            {/* Sidebar */}
            <EditorSidebar />
        </div>
+
+       {/* Modals */}
+       <SaveMapModal 
+           isOpen={showSaveModal}
+           initialName={currentMapName}
+           onClose={() => setShowSaveModal(false)}
+           onSave={executeSave}
+       />
+       <LoadMapModal
+           isOpen={showLoadModal}
+           onClose={() => setShowLoadModal(false)}
+           onLoad={executeLoad}
+       />
+       <ExitWarningModal 
+           isOpen={showExitModal}
+           onCancel={() => setShowExitModal(false)}
+           onConfirmExit={confirmExit}
+           onSaveAndExit={saveAndExit}
+       />
     </div>
   );
 };

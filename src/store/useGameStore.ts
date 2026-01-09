@@ -19,9 +19,11 @@ interface GameStore {
   gameOverStats: { roundsSurvived: number; message: string };
   activePowerUps: ActivePowerUpState[];
   currentRound: number; // New property
+  isPreviewing: boolean;
   
   // Actions
   setGameState: (state: GameState) => void;
+  setIsPreviewing: (val: boolean) => void;
   updatePlayerStats: (stats: Partial<PlayerStats>) => void;
   resetPlayerStats: () => void;
   setGameOverStats: (stats: GameOverStats) => void;
@@ -45,8 +47,10 @@ export const useGameStore = create<GameStore>((set) => ({
   gameOverStats: { roundsSurvived: 0, message: '' },
   activePowerUps: [], // New list for UI
   currentRound: 1, // NEW: Initial current round
+  isPreviewing: false,
   
   setGameState: (state) => set({ gameState: state }),
+  setIsPreviewing: (val) => set({ isPreviewing: val }),
   
   updatePlayerStats: (stats) =>
     set((state) => ({
@@ -57,6 +61,7 @@ export const useGameStore = create<GameStore>((set) => ({
     playerStats: INITIAL_PLAYER_STATS,
     activePowerUps: [],
     currentRound: 1, // NEW: Reset current round
+    isPreviewing: false
   }), // Updated reference
   setGameOverStats: (stats) => set({ gameOverStats: stats }),
   setActivePowerUps: (powerups: ActivePowerUpState[]) => set({ activePowerUps: powerups }), // New action

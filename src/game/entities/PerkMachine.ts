@@ -9,7 +9,6 @@ export class PerkMachine extends Phaser.Physics.Arcade.Sprite implements IIntera
     private perkType: PerkType;
     private cost: number;
     private label: Phaser.GameObjects.Text;
-
     constructor(scene: Phaser.Scene, x: number, y: number, perkType: PerkType) {
         // Map perk type to texture/color in BootScene later. For now use a tinted box or placeholder.
         super(scene, x, y, 'perk_machine_base'); 
@@ -88,5 +87,10 @@ export class PerkMachine extends Phaser.Physics.Arcade.Sprite implements IIntera
             return ''; // Should filter out in canInteract, but safety
         }
         return `Press F to buy ${this.getPerkName(this.perkType)} [${this.cost}]`;
+    }
+
+    destroy(fromScene?: boolean): void {
+        if (this.label) this.label.destroy();
+        super.destroy(fromScene);
     }
 }

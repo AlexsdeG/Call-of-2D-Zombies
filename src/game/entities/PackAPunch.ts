@@ -56,4 +56,9 @@ export class PackAPunch extends Phaser.Physics.Arcade.Sprite implements IInterac
     getInteractionPrompt(player: Player): string {
         return `Press F to Pack-a-Punch [${this.cost}]`;
     }
+
+    destroy(fromScene?: boolean): void {
+        if (this.label) this.label.destroy();
+        super.destroy(fromScene);
+    }
 }
