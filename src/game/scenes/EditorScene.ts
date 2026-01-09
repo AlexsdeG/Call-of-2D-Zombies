@@ -11,6 +11,7 @@ interface EditorObject {
     height: number;
     sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Container;
     properties: Record<string, any>;
+    scripts?: any[]; // using any[] to avoid strict type deps in this file for now, or import Script
 }
 
 export class EditorScene extends Phaser.Scene {
@@ -116,10 +117,13 @@ export class EditorScene extends Phaser.Scene {
     EventBus.on('editor-object-delete', this.handleObjectDelete, this);
     EventBus.on('editor-object-update-prop', this.handleObjectUpdateProp, this);
     EventBus.on('editor-grid-update', this.handleGridSizeUpdate, this);
+    EventBus.on('editor-object-add-script', this.handleAddScript, this);
+    EventBus.on('editor-script-update', this.handleScriptUpdate, this);
+    EventBus.on('editor-script-delete', this.handleScriptDelete, this);
     
     // Input Focus Handling
-    EventBus.on('editor-input-focus', () => { this.controlsEnabled = false; }, this);
-    EventBus.on('editor-input-blur', () => { this.controlsEnabled = true; }, this);
+    EventBus.on('editor-input-focus', this.handleInputFocus, this);
+    EventBus.on('editor-input-blur', this.handleInputBlur, this);
 
     // Focus Game on click
     this.input.on('pointerdown', () => {
@@ -142,8 +146,41 @@ export class EditorScene extends Phaser.Scene {
     // Default Tool: Paint Wall
     this.currentTool = 'paint';
     this.currentTileIndex = 1;
+
+    // Globals
+    this.mapGlobalVariables = [];
+    this.mapGlobalScripts = [];
+    EventBus.on('editor-update-globals', this.handleGlobalUpdate, this);
   }
 
+  // Global State
+  private mapGlobalVariables: any[] = []; // GlobalVariable[]
+  private mapGlobalScripts: any[] = []; // Script[]
+
+  private handleGlobalUpdate(data: { variables: any[], scripts: any[] }) {
+      this.mapGlobalVariables = data.variables;
+      this.mapGlobalScripts = data.scripts;
+  }
+
+  private handleInputFocus() {
+      this.controlsEnabled = false;
+      if (this.input.keyboard) {
+          this.input.keyboard.enabled = false;
+          // Clear captures to let browser handle the keys (like typing in textarea)
+          this.input.keyboard.clearCaptures();
+      }
+  }
+
+  private handleInputBlur() {
+      this.controlsEnabled = true;
+      if (this.input.keyboard) {
+          this.input.keyboard.enabled = true;
+          // Re-enable captures for game controls if needed
+          // WASDQE are handled by this.controls (SmoothedKeyControl) which uses Key objects.
+          // We might want to re-add captures just in case, but usually enabled=true is enough if keys exist.
+      }
+  }
+  
   private controlsEnabled: boolean = true;
 
   update(time: number, delta: number) {
@@ -161,6 +198,12 @@ export class EditorScene extends Phaser.Scene {
       EventBus.off('editor-object-delete', this.handleObjectDelete, this);
       EventBus.off('editor-object-update-prop', this.handleObjectUpdateProp, this);
       EventBus.off('editor-grid-update', this.handleGridSizeUpdate, this);
+      EventBus.off('editor-object-add-script', this.handleAddScript, this);
+      EventBus.off('editor-script-update', this.handleScriptUpdate, this);
+      EventBus.off('editor-script-delete', this.handleScriptDelete, this);
+      EventBus.off('editor-update-globals', this.handleGlobalUpdate, this);
+      EventBus.off('editor-input-focus', this.handleInputFocus, this);
+      EventBus.off('editor-input-blur', this.handleInputBlur, this);
       EventBus.off('exit-game');
       this.tiles.clear();
       if (this.cursorGraphics) this.cursorGraphics.clear();
@@ -671,7 +714,49 @@ export class EditorScene extends Phaser.Scene {
 
       this.editorObjects.set(id, obj);
       this.selectedObject = obj;
-      EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+      EventBus.emit('editor-object-selected', { ...obj, sprite: undefined, scripts: [] });
+  }
+
+  private handleAddScript(data: { id: string, script: any }) {
+    const obj = this.editorObjects.get(data.id);
+    if (!obj) return;
+    
+    if (!obj.scripts) obj.scripts = [];
+    obj.scripts.push(data.script);
+    
+    // Refresh selection to show new script
+    if (this.selectedObject && this.selectedObject.id === data.id) {
+         EventBus.emit('editor-object-selected', {
+            id: obj.id,
+            type: obj.type,
+            x: obj.x,
+            y: obj.y,
+            properties: obj.properties,
+            scripts: obj.scripts
+        });
+    }
+  }
+  
+  private handleScriptUpdate(data: { id: string, index: number, script: any }) {
+      const obj = this.editorObjects.get(data.id);
+      if (!obj || !obj.scripts) return;
+      
+      obj.scripts[data.index] = data.script;
+      
+      if (this.selectedObject && this.selectedObject.id === data.id) {
+          EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+      }
+  }
+
+  private handleScriptDelete(data: { id: string, index: number }) {
+      const obj = this.editorObjects.get(data.id);
+      if (!obj || !obj.scripts) return;
+      
+      obj.scripts.splice(data.index, 1);
+      
+      if (this.selectedObject && this.selectedObject.id === data.id) {
+          EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+      }
   }
   
   private replaceTileUnderObject(x: number, y: number) {
@@ -721,7 +806,8 @@ export class EditorScene extends Phaser.Scene {
               type: found.type,
               x: found.x,
               y: found.y,
-              properties: found.properties
+              properties: found.properties,
+              scripts: found.scripts || []
           });
       } else {
           EventBus.emit('editor-object-deselected');

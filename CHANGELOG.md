@@ -3,6 +3,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.21] - 2026-01-08 - Phase 4 Step 4.3 (Scripting System)
+### Added
+- **Scripting Engine**:
+  - `src/schemas/scriptSchema.ts`: Zod/TypeScript definitions for Triggers (`ON_GAME_START`, `ON_INTERACT`) and Actions (`SHOW_TEXT`).
+  - `src/game/systems/ScriptEngine.ts`: Runtime system to evaluate triggers and execute actions.
+  - Integration with `MainGameScene` (Game Start trigger).
+- **Editor UI**:
+  - Added "Scripts" section to Object Inspector.
+  - Ability to add new scripts to objects (default: Show Text on Interact).
+  - Visualization of attached scripts in the editor sidebar.
+- **Tests**:
+  - `src/tests/scriptTests.ts`: Unit tests for ScriptEngine logic.
+
 ## [0.1.20] - 2026-01-08
 ### Added
 - Editor: Object Placement foundation.

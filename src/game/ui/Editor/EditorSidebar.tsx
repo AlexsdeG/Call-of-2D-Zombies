@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { EventBus } from '../../EventBus';
 import { Box, Grid, Eraser, Settings } from 'lucide-react';
 import { WEAPON_DEFS } from '../../../config/constants';
+import { ContextMenu } from './ContextMenu';
+import { ScriptEditorModal } from './ScriptEditorModal';
+import { GlobalManagerModal } from './GlobalManagerModal';
 
 type EditorTab = 'tiles' | 'objects' | 'settings';
 
@@ -23,7 +26,29 @@ export const EditorSidebar = () => {
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
   const objectTypes = ['Spawner', 'SpawnPoint', 'CustomObject', 'TriggerZone', 'Barricade', 'Door', 'WallBuy', 'PerkMachine', 'MysteryBox', 'PackAPunch'];
 
+  // Script Editor State
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, scriptIndex: number } | null>(null);
+  const [editingScript, setEditingScript] = useState<{ script: any, index: number } | null>(null);
+  const [isGlobalManagerOpen, setIsGlobalManagerOpen] = useState(false);
+  
+  // Globals Local State (Synced from Scene ideally, but for now managed here/propogated)
+  const [globalVariables, setGlobalVariables] = useState<any[]>([]);
+  const [globalScripts, setGlobalScripts] = useState<any[]>([]);
 
+  // Sync Global Events
+  React.useEffect(() => {
+      const openGlobalManager = () => setIsGlobalManagerOpen(true);
+      EventBus.on('editor-open-global-scripts', openGlobalManager);
+      return () => {
+          EventBus.off('editor-open-global-scripts', openGlobalManager);
+      };
+  }, []);
+
+  const updateGlobals = (vars: any[], scripts: any[]) => {
+      setGlobalVariables(vars);
+      setGlobalScripts(scripts);
+      EventBus.emit('editor-update-globals', { variables: vars, scripts });
+  };
 
   // Sync initial state
   React.useEffect(() => {
@@ -72,9 +97,35 @@ export const EditorSidebar = () => {
       setActiveTool('paint');
       EventBus.emit('editor-tool-change', { tool: 'paint', tileIndex: index });
   };
+  
+  // Script Handlers
+  const handleScriptRightClick = (e: React.MouseEvent, index: number) => {
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, scriptIndex: index });
+  };
+  
+  const deleteScript = (index: number) => {
+      if (selectedObject) {
+         EventBus.emit('editor-script-delete', { id: selectedObject.id, index });
+      }
+  };
+  
+  const renameScript = (index: number) => {
+      const newName = prompt("Enter new script name:", selectedObject?.scripts[index]?.name);
+      if (newName && selectedObject) {
+          const updatedScript = { ...selectedObject.scripts[index], name: newName };
+          EventBus.emit('editor-script-update', { id: selectedObject.id, index, script: updatedScript });
+      }
+  };
+  
+  const saveScript = (updated: any) => {
+     if (editingScript && selectedObject) {
+         EventBus.emit('editor-script-update', { id: selectedObject.id, index: editingScript.index, script: updated });
+     }
+  };
 
   return (
-    <div className="w-64 bg-gray-900 border-l border-gray-700 h-full flex flex-col text-gray-200 pointer-events-auto">
+    <div className="w-64 bg-gray-900 border-l border-gray-700 h-full flex flex-col text-gray-200 pointer-events-auto relative">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 bg-gray-800">
           <h2 className="font-bold text-lg text-white tracking-wide">TOOLBOX</h2>
@@ -428,6 +479,49 @@ export const EditorSidebar = () => {
                                       />
                                   </div>
                               )}
+                              
+                              {/* SCRIPTS SECTION */}
+                              <div className="pt-2 border-t border-gray-700">
+                                   <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">Attached Scripts</div>
+                                   
+                                   {/* List Existing Scripts */}
+                                   {(selectedObject.scripts && selectedObject.scripts.length > 0) ? (
+                                       <div className="space-y-1 mb-2">
+                                           {selectedObject.scripts.map((script: any, idx: number) => (
+                                               <div 
+                                                 key={idx} 
+                                                 className="bg-gray-700 p-1 rounded text-[10px] flex justify-between items-center cursor-pointer hover:bg-gray-600 border border-transparent hover:border-gray-500"
+                                                 onContextMenu={(e) => handleScriptRightClick(e, idx)}
+                                                 onClick={() => setEditingScript({ script, index: idx })}
+                                               >
+                                                   <span className="truncate max-w-[100px]">{script.name}</span>
+                                                   <div className="text-gray-400 text-[8px]">{script.triggers?.length || 0} Triggers</div>
+                                               </div>
+                                           ))}
+                                       </div>
+                                   ) : (
+                                       <div className="bg-black/50 p-2 rounded text-[10px] text-gray-500 text-center border border-gray-800 border-dashed mb-2">
+                                           No scripts attached.
+                                       </div>
+                                   )}
+
+                                   <button
+                                     onClick={() => {
+                                         // Create a default script
+                                         const newScript = {
+                                             id: crypto.randomUUID(),
+                                             name: 'New Script',
+                                             triggers: [{ type: 'ON_INTERACT' }],
+                                             actions: [{ type: 'SHOW_TEXT', parameters: { text: "Hello!" } }],
+                                             enabled: true
+                                         };
+                                         EventBus.emit('editor-object-add-script', { id: selectedObject.id, script: newScript });
+                                     }}
+                                     className="w-full py-1 bg-blue-700 hover:bg-blue-600 rounded text-[10px] font-bold transition"
+                                   >
+                                       + ADD SCRIPT
+                                   </button>
+                              </div>
                           </div>
                       </div>
                   )}
@@ -473,14 +567,73 @@ export const EditorSidebar = () => {
                               APPLY RESIZE
                           </button>
                       </div>
+
+                      {/* Global Scripts Section */}
+                      <div className="space-y-2 pt-4 border-t border-gray-700">
+                          <div className="text-xs font-bold text-gray-400">Global Scripts</div>
+                          <div className="text-[10px] text-gray-500 mb-2">Scripts that run on Game Start or Global Events.</div>
+                          
+                           {/* List Global Scripts */}
+                           {/* Note: We need to access map.scripts somehow. Currently we only have selectedObject. 
+                               We need to emit an event to get/set map global scripts or pass it as prop?
+                               Actually EditorSidebar is generic. Let's assume we can emit 'editor-map-script-add' etc.
+                               But we need to display them. We probably need a new state `globalScripts` passed via props or event.
+                               For now, let's just emit event to open a "Global Script Manager" modal or list them if we have them. 
+                               
+                               Wait, `EditorScene` has `mapData`. We can subscribe to `editor-map-update`.
+                           */}
+                           <button 
+                             onClick={() => EventBus.emit('editor-open-global-scripts')}
+                             className="w-full py-2 bg-purple-700 hover:bg-purple-600 rounded text-xs font-bold transition"
+                           >
+                               MANAGE GLOBAL SCRIPTS
+                           </button>
+                      </div>
                   </div>
               </div>
           )}
 
       </div>
+      
+      {/* Script Context Menu */}
+      {contextMenu && (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            options={[
+                { label: 'Rename', action: () => renameScript(contextMenu.scriptIndex) },
+                { label: 'Delete', action: () => deleteScript(contextMenu.scriptIndex), color: 'red' }
+            ]}
+            onClose={() => setContextMenu(null)}
+          />
+      )}
+      
+
+
+      {/* Script Editor Modal */}
+      {editingScript && (
+          <ScriptEditorModal
+              script={editingScript.script}
+              onClose={() => setEditingScript(null)}
+              onSave={saveScript}
+              knownGlobals={globalVariables}
+          />
+      )}
+      
+      {/* Global Manager */}
+      {isGlobalManagerOpen && (
+          <GlobalManagerModal
+              variables={globalVariables}
+              scripts={globalScripts}
+              onUpdateVariables={(vars) => updateGlobals(vars, globalScripts)}
+              onUpdateScripts={(scripts) => updateGlobals(globalVariables, scripts)}
+              onClose={() => setIsGlobalManagerOpen(false)}
+          />
+      )}
     </div>
   );
 };
+
 
 // Helper Component
 const TileButton = ({ label, color, selected, onClick }: { label: string, color: string, selected: boolean, onClick: () => void }) => (

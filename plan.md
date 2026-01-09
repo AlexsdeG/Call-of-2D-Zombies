@@ -123,7 +123,7 @@
 *   **Step 4.4: File I/O**
     *   Implement "Save Project": Serialize map to JSON -> Store in `localForage`.
     *   Implement "Export/Import": Download/Upload `.json` files (validated by Zod). create export and improter which read the files and use the internal logic to use the game engine to use the created assets in game, to translate the editor map to a real game map, similar to defaultmap, here needs good translator.
-    *   Implement "Load Project": Deserialize map from JSON -> Load into EditorScene. + high security with analyzer for malicious code, high security robust.
+    *   Implement "Load Project": Deserialize map from JSON -> Load into EditorScene. + high security with analyzer for malicious code, high security robust. load also all textures and assets, eg for custom objects.
 
 ---
 

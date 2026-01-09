@@ -21,12 +21,15 @@ import { PowerUpType } from '../types/PerkTypes';
 import { useGameStore } from '../../store/useGameStore';
 import { IGameMode } from '../gamemodes/IGameMode';
 import { SurvivalMode } from '../gamemodes/SurvivalMode';
+import { ScriptEngine } from '../systems/ScriptEngine';
+import { TriggerType } from '../../schemas/scriptSchema';
 
 export class MainGameScene extends Phaser.Scene {
   private player!: Player;
   private visionManager!: VisionManager;
   private mapManager!: MapManager;
   private pathfindingManager!: PathfindingManager;
+  public scriptEngine!: ScriptEngine;
   private gameMode!: IGameMode;
   
   private crates: Phaser.GameObjects.Sprite[] = [];
@@ -234,12 +237,10 @@ export class MainGameScene extends Phaser.Scene {
     
     this.interactableGroup = this.add.group(); 
 
-    this.targetLayer = this.add.layer();
-    this.targetLayer.setDepth(5); 
-
     // 1. Map & Pathfinding Init
     this.pathfindingManager = new PathfindingManager(this);
     this.mapManager = new MapManager(this, this.pathfindingManager);
+    this.scriptEngine = new ScriptEngine(this);
 
     // 1.5 Textures
     this.createBackground();
@@ -251,7 +252,8 @@ export class MainGameScene extends Phaser.Scene {
     this.player = new Player(this, 100, 100, this.bulletGroup);
     this.player.setInteractables(this.interactableGroup); 
     this.player.setZombieGroup(this.zombieGroup); 
-
+    // Inject ScriptEngine into Player for OnInteract triggers (if needed later) or handled via Scene
+    
     // 3. Load Map
     const valid = this.mapManager.validate(DEBUG_MAP);
     if (valid.success && valid.data) {
@@ -273,6 +275,14 @@ export class MainGameScene extends Phaser.Scene {
             this.perkMachineGroup,
             this.packAPunchGroup
         );
+        
+        // Register Scripts
+        if (valid.data.scripts) {
+            this.scriptEngine.registerScripts(valid.data.scripts);
+        }
+        
+        // Trigger Map Start
+        this.scriptEngine.trigger(TriggerType.ON_GAME_START);
     }
     
     this.doorGroup.children.each(d => { this.interactableGroup.add(d); return true; });
