@@ -24,6 +24,7 @@ export const EditorSidebar = () => {
 
   // Object State
   const [selectedObject, setSelectedObject] = useState<any | null>(null);
+  const [activeObjectType, setActiveObjectType] = useState<string>('Spawner'); // Default
   const objectTypes = ['Spawner', 'SpawnPoint', 'CustomObject', 'TriggerZone', 'Barricade', 'Door', 'WallBuy', 'PerkMachine', 'MysteryBox', 'PackAPunch'];
 
   // Script Editor State
@@ -67,6 +68,20 @@ export const EditorSidebar = () => {
       };
   }, [brushShape, brushWidth, brushHeight]);
 
+  // Sync Timer/Events for External Tool Changes
+  React.useEffect(() => {
+     const onExternalToolChange = (data: { tool: any, tileIndex: number }) => {
+         // Prevent loop if needed, but setState is safe.
+         setActiveTool(data.tool);
+         // If it's place_object we might need to know the type, but usually scene handles it.
+         // If we switch AWAY from place_object, this will clear the highlight because
+         // the button check is `activeTool === 'place_object'`.
+     };
+     
+     EventBus.on('editor-tool-change', onExternalToolChange);
+     return () => EventBus.off('editor-tool-change', onExternalToolChange);
+  }, []);
+
   // Sync Brush
   React.useEffect(() => {
       EventBus.emit('editor-brush-update', { shape: brushShape, width: brushWidth, height: brushHeight });
@@ -95,6 +110,8 @@ export const EditorSidebar = () => {
   const handleTileSelect = (index: number) => {
       setActiveTile(index);
       setActiveTool('paint');
+      // For internal changes, we emit BUT we also set state (above).
+      // The listener above will re-set state but that's fine (React dedupes).
       EventBus.emit('editor-tool-change', { tool: 'paint', tileIndex: index });
   };
   
@@ -258,8 +275,16 @@ export const EditorSidebar = () => {
                           {objectTypes.map(type => (
                               <button
                                   key={type}
-                                  onClick={() => EventBus.emit('editor-object-select', { type })}
-                                  className="p-2 bg-gray-800 border border-gray-600 rounded hover:bg-gray-700 text-xs text-left truncate"
+                                  onClick={() => {
+                                      setActiveObjectType(type);
+                                      handleToolSelect('place_object');
+                                      EventBus.emit('editor-object-select', { type });
+                                  }}
+                                  className={`p-2 border rounded text-xs text-left truncate transition
+                                    ${activeTool === 'place_object' && activeObjectType === type 
+                                        ? 'bg-purple-600 border-purple-400 text-white' 
+                                        : 'bg-gray-800 border-gray-600 hover:bg-gray-700 text-gray-200'
+                                    }`}
                               >
                                   {type}
                               </button>

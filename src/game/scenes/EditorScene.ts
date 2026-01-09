@@ -700,6 +700,9 @@ export class EditorScene extends Phaser.Scene {
       container.add([gfx, text]);
       container.setSize(width, height);
       
+      container.add([gfx, text]);
+      container.setSize(width, height);
+      
       const obj: EditorObject = {
           id,
           type,
@@ -715,6 +718,14 @@ export class EditorScene extends Phaser.Scene {
       this.editorObjects.set(id, obj);
       this.selectedObject = obj;
       EventBus.emit('editor-object-selected', { ...obj, sprite: undefined, scripts: [] });
+      
+      // Auto-switch to Select Mode (unless CTRL is held)
+      // pointer.event might be null if simulated, but usually valid for mouse/touch
+      const event = pointer.event as MouseEvent;
+      if (!event.ctrlKey && !event.metaKey) {
+          this.currentTool = 'select';
+          EventBus.emit('editor-tool-change', { tool: 'select', tileIndex: this.currentTileIndex });
+      }
   }
 
   private handleAddScript(data: { id: string, script: any }) {

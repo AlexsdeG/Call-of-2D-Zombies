@@ -14,7 +14,7 @@ The game uses a folder-based sound architecture. Place audio files in `public/so
 
 *Note: The `SoundManager` handles missing files gracefully. If a specific weapon sound is missing, it attempts to play from `/sounds/weapons/DEFAULT/`.*
 
-## Keybinds
+## Keybinds In-Game
 
 | Key | Action |
 |-----|--------|
@@ -29,3 +29,15 @@ The game uses a folder-based sound architecture. Place audio files in `public/so
 | **Mouse Wheel** | Cycle Weapons |
 | **ESC** | Pause |
 | **TAB** | Inventory |
+
+
+## Keybinds Editor
+
+| Key | Action |
+|-----|--------|
+| **W, A, S, D** | Move Camera |
+| **Mouse** | Select Tile |
+| **Mouse Wheel** | Zoom Camera |
+| **Q/E** | Zoom Camera |
+| **Left Click** | Place Tile |
+| **Ctrl + Left Click** | Place multiple Objects |
