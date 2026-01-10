@@ -515,9 +515,9 @@ const App: React.FC = () => {
            {gameState === GameState.GAME_OVER && <GameOverMenu isPreview={isPreviewMode} />}
            {gameState === GameState.EDITOR && !isPreviewMode && <EditorOverlay />}
            
-           {(gameState === GameState.GAME || isPreviewMode) && <InteractionPrompt />}
-           {(gameState === GameState.GAME || isPreviewMode) && <WeaponNameToast />}
-           {(gameState === GameState.GAME || isPreviewMode) && <ActivePowerUps />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <InteractionPrompt />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <WeaponNameToast />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <ActivePowerUps />}
         </div>
       </div>
     </div>
