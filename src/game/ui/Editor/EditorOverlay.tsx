@@ -28,6 +28,9 @@ export const EditorOverlay = () => {
   
   // Pending Actions
   const [pendingPreview, setPendingPreview] = React.useState(false);
+  
+  // History State
+  const [historyState, setHistoryState] = React.useState({ canUndo: false, canRedo: false });
 
   // Listeners
   React.useEffect(() => {
@@ -62,6 +65,13 @@ export const EditorOverlay = () => {
       const onCleanState = () => setHasUnsavedChanges(false);
       const onDirtyState = () => setHasUnsavedChanges(true);
       
+      const onHistoryUpdate = (state: { canUndo: boolean, canRedo: boolean }) => {
+          setHistoryState({ canUndo: state.canUndo, canRedo: state.canRedo });
+      };
+      
+      EventBus.on('history-update', onHistoryUpdate);
+
+      
       EventBus.on('editor-save-success', onSaveSuccess);
       EventBus.on('editor-load-success', onLoadSuccess);
       EventBus.on('editor-io-error', onError);
@@ -77,6 +87,7 @@ export const EditorOverlay = () => {
           EventBus.off('editor-dirty-state', onDirtyState);
           EventBus.off('editor-clean-state', onCleanState);
           EventBus.off('editor-content-changed', onContentChange); 
+          EventBus.off('history-update', onHistoryUpdate);
       };
   }, [pendingPreview]);
 
@@ -147,6 +158,9 @@ export const EditorOverlay = () => {
       }
   };
 
+  const handleUndo = () => EventBus.emit('editor-undo');
+  const handleRedo = () => EventBus.emit('editor-redo');
+
  
 
   // ... (rest)
@@ -161,6 +175,31 @@ export const EditorOverlay = () => {
                       MAP EDITOR <span className="text-xs text-gray-500 bg-black/50 px-2 py-0.5 rounded">BETA {VERSION}</span>
               </h2>
           </div>
+          
+           {/* Center Area: Undo/Redo */}
+           <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleUndo} 
+                  disabled={!historyState.canUndo}
+                  className={`px-3 py-1 rounded text-xs transition flex items-center gap-1 ${historyState.canUndo ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                >
+                    ↩ Undo
+                </button>
+                 <button 
+                  onClick={handleRedo} 
+                  disabled={!historyState.canRedo}
+                  className={`px-3 py-1 rounded text-xs transition flex items-center gap-1 ${historyState.canRedo ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-800 text-gray-500 cursor-not-allowed'}`}
+                >
+                    Redo ↪
+                </button>
+                <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                <button 
+                  onClick={() => EventBus.emit('editor-toggle-history')}
+                  className="px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded text-xs transition flex items-center gap-1"
+                >
+                    History 📜
+                </button>
+           </div>
           
           <div className="flex items-center gap-2">
                {hasUnsavedChanges && (
@@ -214,6 +253,7 @@ export const EditorOverlay = () => {
                <div className="absolute bottom-4 left-4 pointer-events-none opacity-50">
                     <div className="text-xs text-white font-mono bg-black/50 p-2 rounded">
                         <div>WASD or MMB: Move Camera</div>
+                        <div>CTRL+Z / CTRL+Y: Undo/Redo</div>
                         <div>CTRL + LMB: Place multiple Objects</div>
                         <div>SCROLL or Q/E: Zoom</div>
                         <div>LMB: Paint/Place/Select</div>

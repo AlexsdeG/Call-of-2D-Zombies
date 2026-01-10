@@ -41,3 +41,5 @@ The game uses a folder-based sound architecture. Place audio files in `public/so
 | **Q/E** | Zoom Camera |
 | **Left Click** | Place Tile |
 | **Ctrl + Left Click** | Place multiple Objects |
+| **Ctrl + Z** | Undo |
+| **Ctrl + Y** | Redo |

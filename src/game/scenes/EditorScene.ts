@@ -4,6 +4,7 @@ import { EventBus } from '../EventBus';
 // They are likely ../systems/MapSerializer and ../storage/ProjectStorage
 import { MapSerializer } from '../systems/MapSerializer';
 import { ProjectStorage } from '../storage/ProjectStorage';
+import { HistoryManager, EditorAction } from '../systems/HistoryManager';
 
 interface EditorObject {
     id: string;
@@ -54,6 +55,11 @@ export class EditorScene extends Phaser.Scene {
   private restoreData?: any;
   private restoreDirty: boolean = false;
 
+  public history!: HistoryManager;
+  private batchPaintAction: { x: number, y: number, prev: number, new: number }[] = [];
+  private dragStartPos: { x: number, y: number } | null = null;
+
+
   constructor() {
     super({ key: 'EditorScene' });
   }
@@ -75,6 +81,9 @@ export class EditorScene extends Phaser.Scene {
     
     // 0. Generate Editor Resources
     this.createEditorTextures();
+
+    // 0.5 History
+    this.history = new HistoryManager();
 
     // 1. Grid Visualization
     this.createGrid();
@@ -144,6 +153,24 @@ export class EditorScene extends Phaser.Scene {
     
     // Zoom with mouse wheel
     this.input.on('wheel', (_u: unknown, _g: unknown, _x: number, deltaY: number, _z: number) => {
+        // ... (existing zoom)
+        // If we want to support ctrl+z here we need global key listener or scene key listener
+    });
+
+    // Undo/Redo Keys (Ctrl+Z, Ctrl+Y)
+    this.input.keyboard!.on('keydown-Z', (event: KeyboardEvent) => {
+        if (event.ctrlKey || event.metaKey) {
+            this.handleUndo();
+        }
+    });
+
+    this.input.keyboard!.on('keydown-Y', (event: KeyboardEvent) => {
+         if (event.ctrlKey || event.metaKey) {
+             this.handleRedo();
+         }
+    });
+
+    this.input.on('wheel', (_u: unknown, _g: unknown, _x: number, deltaY: number, _z: number) => {
         const newZoom = this.cameras.main.zoom - deltaY * 0.001;
         this.cameras.main.setZoom(Phaser.Math.Clamp(newZoom, 0.1, 4));
     });
@@ -170,12 +197,44 @@ export class EditorScene extends Phaser.Scene {
       EventBus.on('editor-command-import', this.handleImportProject, this);
       EventBus.on('editor-command-preview', this.handlePreviewMap, this);
       
-      EventBus.on('check-editor-status', () => console.log('EditorScene is Active'), this);
+      EventBus.on('editor-script-delete', this.handleScriptDelete, this);
+    EventBus.on('check-editor-status', () => console.log('EditorScene is Active'), this);
+    
+    // I/O Commands from Overlay
       
       // Safety: If game starts externally (e.g. from Menu), ensure we die
       // If we are still active when 'start-game' fires, MenuScene likely wasn't active to handle it.
       EventBus.off('start-game', this.handleAutoShutdown, this); // Prevent dupe
       EventBus.on('start-game', this.handleAutoShutdown, this);
+
+      // History Events
+      EventBus.on('editor-undo', this.handleUndo, this);
+      EventBus.on('editor-redo', this.handleRedo, this);
+
+      EventBus.on('editor-history-jump', (targetIndex: number) => {
+          const { undo } = this.history.getHistory();
+          const currentUndoLength = undo.length; // Number of actions currently applied
+          // targetIndex is 0-based index of the action in the full chronological list.
+          // IF we click item i, we want the state AFTER action i is applied.
+          // So we want undo stack length to be i + 1.
+          
+          const targetLength = targetIndex + 1;
+          const diff = targetLength - currentUndoLength;
+          
+          if (diff < 0) {
+              // We need to Undo abs(diff) times
+              const count = Math.abs(diff);
+              for (let k = 0; k < count; k++) {
+                  this.handleUndo();
+              }
+          } else if (diff > 0) {
+              // We need to Redo diff times
+              for (let k = 0; k < diff; k++) {
+                  this.handleRedo();
+              }
+          }
+      });
+      
 
 
       
@@ -479,6 +538,10 @@ export class EditorScene extends Phaser.Scene {
       EventBus.off('editor-input-enable', this.handleInputEnable, this);
       EventBus.off('exit-game', this.handleExit, this);
       EventBus.off('start-game', this.handleAutoShutdown, this);
+
+      EventBus.off('editor-undo', this.handleUndo, this);
+      EventBus.off('editor-redo', this.handleRedo, this);
+
       
       // Properly Destroy Tiles
       this.tiles.forEach(t => t.destroy());
@@ -741,6 +804,49 @@ export class EditorScene extends Phaser.Scene {
           this.isPanning = false;
           this.game.canvas.style.cursor = 'default';
       }
+      
+      // End Batch Paint
+      if (this.isDrawing && this.batchPaintAction.length > 0) {
+           this.history.push({
+               type: 'PAINT_TILES',
+               label: 'Paint Tiles',
+               timestamp: Date.now(),
+               data: [...this.batchPaintAction]
+           });
+           this.batchPaintAction = [];
+      }
+      
+      // End Object Drag
+      if (this.isDraggingObject && this.selectedObject && this.dragStartPos) {
+          if (this.selectedObject.x !== this.dragStartPos.x || this.selectedObject.y !== this.dragStartPos.y) {
+              
+              const tileChanges: any[] = [];
+              if (this.selectedObject.type === 'Door' || this.selectedObject.type === 'Barricade') {
+                  // Capture new tile change
+                  const tx = Math.floor(this.selectedObject.x / this.TILE_SIZE);
+                  const ty = Math.floor(this.selectedObject.y / this.TILE_SIZE);
+                  const change = this.setTile(tx, ty, 0);
+                  if (change) tileChanges.push(change);
+              }
+
+              this.history.push({
+                  type: 'MOVE_OBJECT',
+                  label: `Move ${this.selectedObject.type}`,
+                  timestamp: Date.now(),
+                  data: { 
+                      id: this.selectedObject.id, 
+                      prevX: this.dragStartPos.x, 
+                      prevY: this.dragStartPos.y, 
+                      newX: this.selectedObject.x, 
+                      newY: this.selectedObject.y,
+                      tileChanges // Include tile changes
+                  }
+              });
+              this.markDirty();
+          }
+          this.dragStartPos = null;
+      }
+
       this.isDrawing = false;
       this.isDraggingObject = false;
   }
@@ -783,27 +889,361 @@ export class EditorScene extends Phaser.Scene {
       }
   }
 
-  private applyTileAction(tileX: number, tileY: number) {
+  private getTileIndexAt(x: number, y: number): number {
+     const key = `${x},${y}`;
+     const tile = this.tiles.get(key);
+     if (!tile) return 0; // Empty/Default
+     if (tile.texture.key === 'editor_wall') return 1;
+     if (tile.texture.key === 'editor_water') return 2;
+     if (tile.texture.key === 'editor_grass') return 3;
+     if (tile.texture.key === 'editor_floor') return 4;
+     return 0;
+  }
+
+  private applyTileAction(tileX: number, tileY: number, isUndoRedo: boolean = false) {
       const key = `${tileX},${tileY}`;
+      const prevIndex = this.getTileIndexAt(tileX, tileY);
+      let newIndex = this.currentTileIndex;
+
       if (this.currentTool === 'erase') {
-          if (this.tiles.has(key)) {
-              this.tiles.get(key)!.destroy();
-              this.tiles.delete(key);
-              this.markDirty();
-          }
+          newIndex = 0; // Erase means 0
+          if (!this.tiles.has(key)) return; // Already empty
+          
+          this.tiles.get(key)!.destroy();
+          this.tiles.delete(key);
+          this.markDirty();
       } else {
+          // Paint
           const existing = this.tiles.get(key);
           const texture = this.getTextureKey(this.currentTileIndex);
-          if (existing) {
-              if (existing.texture.key === texture) return;
-              existing.destroy();
+          if (existing && existing.texture.key === texture) return; // Same tile
+          
+          if (existing) existing.destroy();
+          
+          // Create new
+         if (texture) {
+              const tile = this.add.image(tileX * this.TILE_SIZE + 16, tileY * this.TILE_SIZE + 16, texture);
+              tile.setDepth(0); 
+              this.tiles.set(key, tile);
           }
-          const tile = this.add.image(tileX * this.TILE_SIZE + 16, tileY * this.TILE_SIZE + 16, texture);
-          tile.setDepth(0); // Ensure tiles are at bottom
+          this.markDirty();
+      }
+
+      // Record History (if not playing back)
+      if (!isUndoRedo) {
+          this.batchPaintAction.push({ 
+              x: tileX, 
+              y: tileY, 
+              prev: prevIndex, 
+              new: newIndex 
+          });
+      }
+  }
+
+  // Overload for Direct Paint (Undo/Redo)
+  private paintTileDirect(x: number, y: number, index: number) {
+      const key = `${x},${y}`;
+      if (this.tiles.has(key)) {
+          this.tiles.get(key)!.destroy();
+          this.tiles.delete(key);
+      }
+      
+      if (index === 0) return; // Empty
+
+      const texture = this.getTextureKey(index);
+      if (texture) {
+          const tile = this.add.image(x * this.TILE_SIZE + 16, y * this.TILE_SIZE + 16, texture);
+          tile.setDepth(0);
           this.tiles.set(key, tile);
+      }
+  }
+
+  private handleUndo() {
+      const action = this.history.undo();
+      if (!action) return;
+      this.applyHistoryAction(action, true);
+  }
+
+  private handleRedo() {
+      const action = this.history.redo();
+      if (!action) return;
+      this.applyHistoryAction(action, false);
+  }
+
+  private applyHistoryAction(action: EditorAction, isUndo: boolean) {
+      console.log(`Applying ${isUndo ? 'Undo' : 'Redo'}: ${action.type}`);
+      
+      if (action.type === 'PAINT_TILES') {
+          const tiles = action.data as { x: number, y: number, prev: number, new: number }[];
+          tiles.forEach(t => {
+              const targetIndex = isUndo ? t.prev : t.new;
+              this.paintTileDirect(t.x, t.y, targetIndex);
+          });
+          this.markDirty();
+      }
+      else if (action.type === 'PLACE_OBJECT') {
+          // Undo: Delete | Redo: Place
+          const objData = action.data;
+          if (isUndo) {
+              this.deleteObjectInternal(objData.id);
+              // Undo Tile Changes
+              if (objData.tileChanges) {
+                  objData.tileChanges.forEach((t: any) => this.paintTileDirect(t.x, t.y, t.prev));
+              }
+          } else {
+              this.restoreObject(objData);
+              // Redo Tile Changes
+              if (objData.tileChanges) {
+                  objData.tileChanges.forEach((t: any) => this.paintTileDirect(t.x, t.y, t.new));
+              }
+          }
+          this.markDirty();
+      }
+      else if (action.type === 'DELETE_OBJECT') {
+          // Undo: Restore | Redo: Delete
+          const objData = action.data;
+          if (isUndo) {
+              this.restoreObject(objData);
+          } else {
+              this.deleteObjectInternal(objData.id);
+          }
+           this.markDirty();
+      }
+      else if (action.type === 'UPDATE_PROP') {
+            const { id, key, prevVal, newVal } = action.data;
+            const targetVal = isUndo ? prevVal : newVal;
+            
+            // Apply prop
+             // Apply prop
+             const obj = this.editorObjects.get(id);
+             if (obj) {
+                 obj.properties[key] = targetVal;
+                 
+                 // Update visual properties based on key
+                 if (key === 'x') obj.x = targetVal;
+                 if (key === 'y') obj.y = targetVal;
+                 if (key === 'rotation') obj.rotation = targetVal;
+                 
+                 // Apply Visual Updates
+                 if (key === 'x' || key === 'y') (obj.sprite as any).setPosition(obj.x, obj.y);
+                 if (key === 'rotation') obj.sprite.setAngle(obj.rotation);
+                 
+                 // Refresh Complex Visuals
+                 if (['width', 'height', 'color', 'radius'].includes(key)) {
+                     this.refreshObjectVisuals(obj);
+                 }
+                 
+                 // Name
+                 if (key === 'name') {
+                      const container = obj.sprite as Phaser.GameObjects.Container;
+                      if (container && container.list.length > 1) {
+                          (container.getAt(1) as Phaser.GameObjects.Text).setText(targetVal);
+                      }
+                 }
+
+                 // If selected, re-select to refresh UI
+                 if (this.selectedObject && this.selectedObject.id === id) {
+                     EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+                 }
+                 this.markDirty();
+             }
+      }
+      else if (action.type === 'UPDATE_SCRIPT') {
+           const { id, prevScripts, newScripts } = action.data;
+           const target = isUndo ? prevScripts : newScripts;
+           const obj = this.editorObjects.get(id);
+           if (obj) {
+               obj.scripts = JSON.parse(JSON.stringify(target)); // Deep copy
+               if (this.selectedObject && this.selectedObject.id === id) {
+                     // Force refresh sidebar
+                     EventBus.emit('editor-object-selected', { ...obj });
+               }
+               this.markDirty();
+           }
+      } else if (action.type === 'MOVE_OBJECT') {
+           const { id, prevX, prevY, newX, newY } = action.data;
+           const targetX = isUndo ? prevX : newX;
+           const targetY = isUndo ? prevY : newY;
+           
+           const obj = this.editorObjects.get(id);
+           if (obj) {
+               obj.x = targetX;
+               obj.y = targetY;
+               (obj.sprite as any).setPosition(obj.x, obj.y);
+               
+               if (this.selectedObject && this.selectedObject.id === id) {
+                   EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+               }
+               this.markDirty();
+           }
+      }
+  }
+
+  // --- Capture Helpers ---
+
+  
+
+
+  private handleObjectDelete() {
+      if (this.selectedObject) {
+          const objData = { ...this.selectedObject }; // clone
+          this.deleteObjectInternal(this.selectedObject.id);
+          this.history.push({
+              type: 'DELETE_OBJECT',
+              label: `Delete ${objData.type}`,
+              timestamp: Date.now(),
+              data: objData
+          });
           this.markDirty();
       }
   }
+
+  private deleteObjectInternal(id: string) {
+        const obj = this.editorObjects.get(id);
+        if (obj) {
+            obj.sprite.destroy();
+            this.editorObjects.delete(id);
+            if (this.selectedObject && this.selectedObject.id === id) {
+                this.selectedObject = null;
+                EventBus.emit('editor-object-deselected');
+            }
+        }
+  }
+  
+  // Property Update capture (Called from UI event)
+  private handleObjectUpdateProp(data: { id: string, key: string, value: any }) {
+      const obj = this.editorObjects.get(data.id);
+      if (obj) {
+          const prevVal = obj.properties[data.key];
+          
+          // Apply
+          obj.properties[data.key] = data.value;
+          
+          // Visuals: Position
+          if (data.key === 'x') { obj.x = data.value; }
+          if (data.key === 'y') { obj.y = data.value; }
+          
+          if (data.key === 'x' || data.key === 'y') {
+              (obj.sprite as any).setPosition(obj.x, obj.y);
+          }
+
+          // Visuals: Rotation
+          if (data.key === 'rotation') {
+               obj.rotation = data.value;
+               obj.sprite.setAngle(obj.rotation);
+               
+               // MysteryBox Special Alignment Logic
+               if (obj.type === 'MysteryBox') {
+                   let gx = Math.round(obj.x / this.gridSize) * this.gridSize;
+                   let gy = Math.round(obj.y / this.gridSize) * this.gridSize;
+                   if (Math.abs(obj.rotation) === 90 || Math.abs(obj.rotation) === 270) {
+                       // Vertical
+                       obj.x = gx + 16; obj.y = gy;
+                   } else {
+                       // Horizontal
+                       obj.x = gx; obj.y = gy + 16;
+                   }
+                   (obj.sprite as any).setPosition(obj.x, obj.y);
+               }
+          }
+          
+          // Visuals: Dimensions / Color (Redraw)
+          if (['width', 'height', 'color', 'radius'].includes(data.key)) {
+              this.refreshObjectVisuals(obj);
+          }
+          
+          // Visuals: Name Label
+          if (data.key === 'name') {
+              const container = obj.sprite as Phaser.GameObjects.Container;
+              if (container.list && container.list.length > 1) {
+                  const text = container.getAt(1) as Phaser.GameObjects.Text;
+                  if (text) text.setText(data.value);
+              }
+          }
+          
+          // Record
+          this.history.push({
+              type: 'UPDATE_PROP',
+              label: `Update ${data.key}`,
+              timestamp: Date.now(),
+              data: { id: data.id, key: data.key, prevVal, newVal: data.value }
+          });
+          this.markDirty();
+          
+          // Refresh UI
+          if (this.selectedObject && this.selectedObject.id === data.id) {
+               EventBus.emit('editor-object-selected', { ...obj, sprite: undefined });
+          }
+      }
+  }
+
+  // Helper to redraw object graphics based on current properties
+  private refreshObjectVisuals(obj: EditorObject) {
+      if (obj.sprite instanceof Phaser.GameObjects.Container) {
+          const container = obj.sprite;
+          const gfx = container.getAt(0) as Phaser.GameObjects.Graphics;
+          if (gfx) {
+              gfx.clear();
+              
+              if (obj.type === 'TriggerZone') {
+                  const r = obj.properties.radius || 32;
+                  obj.width = r * 2; 
+                  obj.height = r * 2;
+                  
+                  gfx.lineStyle(2, 0xffff00, 1);
+                  gfx.fillStyle(0xffff00, 0.2);
+                  gfx.strokeCircle(0, 0, r);
+                  gfx.fillCircle(0, 0, r);
+                  container.setSize(r*2, r*2);
+              } 
+              else if (obj.type === 'CustomObject') {
+                  const w = obj.properties.width || 32;
+                  const h = obj.properties.height || 32;
+                  const color = parseInt((obj.properties.color || '#888888').replace('#', '0x'));
+                  
+                  obj.width = w;
+                  obj.height = h;
+                  
+                  gfx.lineStyle(2, 0xffffff, 1);
+                  gfx.fillStyle(color, 0.8);
+                  gfx.strokeRect(-w/2, -h/2, w, h);
+                  gfx.fillRect(-w/2, -h/2, w, h);
+                  // Face
+                  gfx.fillStyle(0xffffff, 0.8);
+                  gfx.fillRect((w/2) - 4, -2, 4, 4);
+
+                  container.setSize(w, h);
+              }
+              // Add other types if they support property-based visual changes
+          }
+      }
+  }
+
+  private selectObject(pointer: Phaser.Input.Pointer) {
+       // Simple hit test
+       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+       
+       // Reverse iterate to select top-most
+       const objects = Array.from(this.editorObjects.values());
+       for (let i = objects.length - 1; i >= 0; i--) {
+           const obj = objects[i];
+           const bounds = obj.sprite.getBounds();
+           if (bounds.contains(worldPoint.x, worldPoint.y)) {
+               this.selectedObject = obj;
+               this.isDraggingObject = true;
+               this.dragStartPos = { x: obj.x, y: obj.y };
+               EventBus.emit('editor-object-selected', { ...obj });
+               return;
+           }
+       }
+       
+       this.selectedObject = null;
+       EventBus.emit('editor-object-deselected');
+  }
+
+
+
+
 
   private getTextureKey(index: number): string {
       switch(index) {
@@ -996,9 +1436,9 @@ export class EditorScene extends Phaser.Scene {
       } else if (type === 'Door') {
            properties.cost = 500;
            properties.zone = 0;
-           this.replaceTileUnderObject(x, y);
+           // Tile Logic handled below
       } else if (type === 'Barricade') {
-           this.replaceTileUnderObject(x, y);
+           // Tile Logic handled below
       } else if (type === 'PerkMachine') {
            properties.cost = 1000;
            properties.perk = 'JUGGERNOG';
@@ -1051,8 +1491,7 @@ export class EditorScene extends Phaser.Scene {
       container.add([gfx, text]);
       container.setSize(width, height);
       
-      container.add([gfx, text]);
-      container.setSize(width, height);
+
       
       const obj: EditorObject = {
           id,
@@ -1068,6 +1507,22 @@ export class EditorScene extends Phaser.Scene {
 
       this.editorObjects.set(id, obj);
       this.selectedObject = obj;
+      
+      // Tile Change for Door/Barricade
+      let tileChanges: any[] = [];
+      if (type === 'Door' || type === 'Barricade') {
+          const change = this.setTile(Math.floor(x / this.TILE_SIZE), Math.floor(y / this.TILE_SIZE), 0); // 0 = Floor
+          if (change) tileChanges.push(change);
+      }
+      
+      // History
+      this.history.push({
+          type: 'PLACE_OBJECT',
+          label: `Place ${type}`,
+          timestamp: Date.now(),
+          data: { ...obj, sprite: undefined, tileChanges }
+      });
+      
       this.markDirty();
       EventBus.emit('editor-object-selected', { ...obj, sprite: undefined, scripts: [] });
       
@@ -1125,202 +1580,49 @@ export class EditorScene extends Phaser.Scene {
       }
   }
   
-  private replaceTileUnderObject(x: number, y: number) {
-      // Convert world x/y to tile coordinates
-      const tileX = Math.floor(x / this.TILE_SIZE);
-      const tileY = Math.floor(y / this.TILE_SIZE);
+  private setTile(tileX: number, tileY: number, newIndex: number): { x: number, y: number, prev: number, new: number } | null {
+      const key = `${tileX},${tileY}`;
+      const prevIndex = this.getTileIndexAt(tileX, tileY);
       
-      // Set to Floor (0)
-      const prevTool = this.currentTool;
-      const prevIndex = this.currentTileIndex;
+      // If same, do nothing
+      if (prevIndex === newIndex) return null;
       
-      this.currentTileIndex = 0; // Temp switch to floor
-      this.currentTool = 'paint'; // Ensure applyTileAction treats it as paint
-      
-      if (tileX >= 0 && tileX < this.mapWidth && tileY >= 0 && tileY < this.mapHeight) {
-           this.applyTileAction(tileX, tileY);
+      // Destroy existing if any
+      if (this.tiles.has(key)) {
+          this.tiles.get(key)!.destroy();
+          this.tiles.delete(key);
       }
       
-      this.currentTool = prevTool;
-      this.currentTileIndex = prevIndex;
+      // Create new (unless newIndex is 0/Floor and we treat Floor as empty visually? No, Floor has texture)
+      // Wait, applyTileAction logic for Paint(0) -> Empty? No.
+      // In applyTileAction:
+      // Eraser (index?) -> newIndex = 0.
+      // Else -> getTextureKey(index).
+      // If we want Floor, index is 0. getTextureKey(0) -> 'editor_floor'.
+      // So if newIndex=0, we paint 'editor_floor'.
+      // If Erase, usually implicit. But here we want to force Floor.
+      
+      const texture = this.getTextureKey(newIndex);
+      if (texture) {
+           const tile = this.add.image(tileX * this.TILE_SIZE + 16, tileY * this.TILE_SIZE + 16, texture);
+           tile.setDepth(0); 
+           this.tiles.set(key, tile);
+      }
+      this.markDirty();
+      
+      return { x: tileX, y: tileY, prev: prevIndex, new: newIndex };
   }
 
-  private selectObject(pointer: Phaser.Input.Pointer) {
-      const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-      
-      // Simple reverse check (topmost first)
-      let found: EditorObject | null = null;
-      for (const obj of this.editorObjects.values()) {
-          // AABB check
-          if (
-              worldPoint.x >= obj.x - obj.width/2 &&
-              worldPoint.x <= obj.x + obj.width/2 &&
-              worldPoint.y >= obj.y - obj.height/2 &&
-              worldPoint.y <= obj.y + obj.height/2
-          ) {
-              found = obj;
-              // Don't break immediately if we want z-indexing, but map is usually flat.
-          }
-      }
 
-      this.selectedObject = found;
-      
-      if (found) {
-          this.isDraggingObject = true;
-          EventBus.emit('editor-object-selected', {
-              id: found.id,
-              type: found.type,
-              x: found.x,
-              y: found.y,
-              properties: found.properties,
-              scripts: found.scripts || []
-          });
-      } else {
-          EventBus.emit('editor-object-deselected');
-      }
-  }
 
   private handleObjectSelect(data: { type: string }) {
       this.currentObjectType = data.type;
       this.currentTool = 'place_object';
   }
 
-  private handleObjectDelete() {
-      if (this.selectedObject) {
-          this.selectedObject.sprite.destroy();
-          this.editorObjects.delete(this.selectedObject.id);
-          this.selectedObject = null;
-          EventBus.emit('editor-object-deselected');
-      }
-  }
 
-  private handleObjectUpdateProp(data: { id: string, key: string, value: any }) {
-      const obj = this.editorObjects.get(data.id);
-      if (!obj) return;
-      
-      obj.properties[data.key] = data.value;
 
-      // Handle Container-based Objects (Visuals + Text)
-      // obj.sprite is a Container containing [Graphics, Text]
-      const container = obj.sprite as Phaser.GameObjects.Container;
-      
-      // Update Name Label
-      if (data.key === 'name') {
-          const text = container.getAt(1) as Phaser.GameObjects.Text;
-          if (text) {
-              text.setText(data.value || obj.type.substring(0, 4));
-          }
-      }
-      
-      // Handle Position Updates (X/Y)
-      if (data.key === 'x' || data.key === 'y') {
-          if (data.key === 'x') obj.x = data.value;
-          if (data.key === 'y') obj.y = data.value;
-          
-          if (obj.type === 'CustomObject' || obj.type === 'TriggerZone' || obj.type === 'SpawnPoint') {
-               // Container based
-               container.setPosition(obj.x, obj.y);
-          } else {
-               // Sprite based (potentially) - Wait, do all use containers now?
-               // placeObject uses container for Custom/Trigger/Visuals? 
-               // Standard objects (Door, etc) use `this.add.image` or `sprite`.
-               // Let's check `placeObject`. Standard objects use `this.add.image`.
-               // Only Custom/Trigger/Visuals use Container logic in my recent edit.
-               // Actually, `handleObjectUpdateProp` early on casts `obj.sprite as Container`.
-               // This is risky if standard objects are Images.
-               // FIX: Check type before casting.
-          }
-           
-          // Universal move
-          if (obj.sprite instanceof Phaser.GameObjects.Container || obj.sprite instanceof Phaser.GameObjects.Sprite || obj.sprite instanceof Phaser.GameObjects.Image) {
-              obj.sprite.setPosition(obj.x, obj.y);
-          }
-      }
 
-      // Handle Redraws for Custom Visuals
-      if (['width', 'height', 'color', 'radius'].includes(data.key)) {
-          const gfx = container.getAt(0) as Phaser.GameObjects.Graphics;
-          if (gfx) {
-              gfx.clear();
-
-              if (obj.type === 'CustomObject') {
-                  const w = obj.properties.width || 32;
-                  const h = obj.properties.height || 32;
-                  // Update logical dimensions for selection
-                  obj.width = w;
-                  obj.height = h;
-
-                  const color = parseInt((obj.properties.color || '#888888').replace('#', '0x'));
-                  
-                  gfx.lineStyle(2, 0xffffff, 1);
-                  gfx.fillStyle(color, 0.8);
-                  gfx.strokeRect(-w/2, -h/2, w, h);
-                  gfx.fillRect(-w/2, -h/2, w, h);
-                  
-                  // Update Physics body
-                  const body = container.body as Phaser.Physics.Arcade.Body;
-                  if (body) {
-                      body.setSize(w, h);
-                      body.setOffset(-w/2, -h/2);
-                  }
-              } else if (obj.type === 'TriggerZone') {
-                  const r = obj.properties.radius || 32;
-                  
-                  // Update logical dimensions for selection
-                  obj.width = r * 2;
-                  obj.height = r * 2;
-
-                  gfx.lineStyle(2, 0xffff00, 1);
-                  gfx.fillStyle(0xffff00, 0.2);
-                  gfx.strokeCircle(0, 0, r);
-                  gfx.fillCircle(0, 0, r);
-                  
-                  const body = container.body as Phaser.Physics.Arcade.Body;
-                  if (body) {
-                      body.setSize(r * 2, r * 2);
-                      body.setOffset(-r, -r);
-                  }
-              }
-          }
-      }
-      
-      // Handle Rotation
-      if (data.key === 'rotation') {
-           const rot = data.value;
-           obj.rotation = rot;
-           
-           // Rotate the container
-           container.setAngle(rot);
-           
-           // MysteryBox Snap Logic (90 degree turns need offset shift)
-           if (obj.type === 'MysteryBox') {
-               let gx = Math.round(obj.x / this.gridSize) * this.gridSize;
-               let gy = Math.round(obj.y / this.gridSize) * this.gridSize;
-               
-               if (Math.abs(rot) === 90 || Math.abs(rot) === 270) {
-                   // Vertical: Center on Grid Y, Offset X
-                   obj.x = gx + 16;
-                   obj.y = gy; 
-               } else {
-                   // Horizontal: Center on Grid X, Offset Y
-                   obj.x = gx;
-                   obj.y = gy + 16;
-               }
-               container.setPosition(obj.x, obj.y);
-           }
-      }
-      
-      // Update Selection Highlight
-      if (this.selectedObject && this.selectedObject.id === obj.id) {
-          EventBus.emit('editor-object-selected', {
-             id: obj.id, 
-             type: obj.type, 
-             x: obj.x, 
-             y: obj.y, 
-             properties: obj.properties 
-          });
-      }
-  }
 
   private handleToolChange(data: { tool: 'paint' | 'erase' | 'select' | 'place_object', tileIndex: number }) {
       this.currentTool = data.tool;

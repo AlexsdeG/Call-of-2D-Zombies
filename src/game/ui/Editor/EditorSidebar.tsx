@@ -36,6 +36,26 @@ export const EditorSidebar = () => {
   const [globalVariables, setGlobalVariables] = useState<any[]>([]);
   const [globalScripts, setGlobalScripts] = useState<any[]>([]);
 
+  // History Mode
+  const [isHistoryMode, setIsHistoryMode] = useState(false);
+  const [historyList, setHistoryList] = useState<{ label: string, active: boolean }[]>([]);
+
+  // Toggle History Listener
+  React.useEffect(() => {
+      const toggleHistory = () => setIsHistoryMode(prev => !prev);
+      const updateHistory = (data: any) => {
+          if (data.history) setHistoryList(data.history);
+      };
+
+      EventBus.on('editor-toggle-history', toggleHistory);
+      EventBus.on('history-update', updateHistory);
+      
+      return () => {
+          EventBus.off('editor-toggle-history', toggleHistory);
+          EventBus.off('history-update', updateHistory);
+      };
+  }, []);
+
   // Sync Global Events
   React.useEffect(() => {
       const openGlobalManager = () => setIsGlobalManagerOpen(true);
@@ -153,6 +173,51 @@ export const EditorSidebar = () => {
           handleToolSelect('select');
       }
   };
+
+
+  
+  if (isHistoryMode) {
+      return (
+          <div className="w-64 bg-gray-900 border-l border-gray-700 h-full flex flex-col text-gray-200 pointer-events-auto relative shadow-xl">
+              <div className="p-4 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
+                  <h2 className="font-bold text-lg text-white tracking-wide flex items-center gap-2">
+                      📜 HISTORY
+                  </h2>
+                  <button 
+                      onClick={() => setIsHistoryMode(false)}
+                      className="text-gray-400 hover:text-white transition"
+                  >
+                      ✕
+                  </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                  {historyList.length === 0 && (
+                      <div className="text-gray-500 text-center mt-10 text-xs italic">No history recorded</div>
+                  )}
+                  {/* Show list in reverse chronological order (newest top) */}
+                  {[...historyList].reverse().map((item, i) => {
+                       const realIndex = historyList.length - 1 - i;
+                       return (
+                          <div 
+                              key={i} 
+                              onClick={() => EventBus.emit('editor-history-jump', realIndex)}
+                              className={`p-2 rounded text-xs flex items-center gap-2 transition border-l-2 cursor-pointer
+                                  ${item.active 
+                                      ? 'bg-gray-700 text-white border-green-500 hover:bg-gray-600' 
+                                      : 'bg-gray-800/40 text-gray-500 border-transparent hover:bg-gray-700 hover:text-gray-300'
+                                  }`}
+                          >
+                              <span className="opacity-40 font-mono w-4 text-right">{historyList.length - i}.</span>
+                              <span className="flex-1 truncate" title={item.label}>{item.label}</span>
+                              {!item.active && <span className="ml-auto text-[10px] uppercase tracking-wider opacity-50 bg-black/30 px-1 rounded">Undone</span>}
+                          </div>
+                       );
+                  })}
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="w-64 bg-gray-900 border-l border-gray-700 h-full flex flex-col text-gray-200 pointer-events-auto relative">

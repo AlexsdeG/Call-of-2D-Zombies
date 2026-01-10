@@ -3,6 +3,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-01-10
+### Added
+- **Editor History**: Implemented Undo/Redo for tile painting, object placement, movement, and property updates.
+- **Script Editor History**: Added local undo/redo for code editing.
+- **UI**: Added Undo/Redo buttons to Editor Toolbar and Script Modal.
+
 ## [0.2.1] - 2026-01-10 - Phase 4 Step 4.4 Part 2 (Map Serialization)
 ### Added
 - **File I/O**:

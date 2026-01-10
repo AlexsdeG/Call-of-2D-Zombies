@@ -127,9 +127,11 @@
     *   Implement "Preview": here load the map data into a real game to test everything, with esc menu or death, add option return to editor agian. here add preview button to top menu bar. this button will render the game using the ingame renderer but uses map data of the editor as map. to play preview, map has to be saved first. and validated.
     *   Implement also bedite Preview a Validation button this checks the mapp data for errors, checks all scripts and runs also the process to translate the editor map to a real game map, similar to defaultmap, here needs good translator. this will show also errors and warnings in a extra modal window.
 
-*   **Step 5: History Undo/Redo**
+*   **Step 4.5: History Undo/Redo**
     *   Implement "History": Implement undo/redo functionality for map changes. this allows all new updates while editing to be undone and redone. dont save or export history, only keep it in memory.
     *   Implement "History" UI: Show history in a sidebar as new tab. allow to select a specific history entry and apply it to the map. + add forward and backward buttons to navigate through history into the top menu bar perfectly in the middle, inbetween the Beta Label and save button.
+    *   History works for painting removing tiles, placinf/removing/moving objects, changeing object properties, changeing object scripts, also global settings like variables skripts and size.
+    *   Implemet a extra history inside the code editor, in the bottom toolbar, to allow to undo/redo changes in the code editor.
     
 ---
 
