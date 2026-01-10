@@ -132,7 +132,13 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
+    private collected: boolean = false;
+
     public collect(player: Player) {
+        if (this.collected) return;
+        this.collected = true;
+        this.disableBody(true, false); // Disable physics immediately, keep visible
+
         // Global Effect
         switch (this.powerUpType) {
             case PowerUpType.NUKE:
@@ -144,7 +150,7 @@ export class PowerUp extends Phaser.Physics.Arcade.Sprite {
             case PowerUpType.FIRE_SALE:
                 EventBus.emit('trigger-firesale');
                 // Give visual timer to player as well
-                player.activatePowerUp(PowerUpType.FIRE_SALE, 60000);
+                player.activatePowerUp(PowerUpType.FIRE_SALE, this.duration);
                 break;
             default:
                 // Timed Logic

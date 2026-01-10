@@ -50,8 +50,23 @@ export class EditorScene extends Phaser.Scene {
   private isPanning: boolean = false;
   private lastPanPoint: Phaser.Math.Vector2 = new Phaser.Math.Vector2();
 
+  // Editor Data to restore
+  private restoreData?: any;
+  private restoreDirty: boolean = false;
+
   constructor() {
     super({ key: 'EditorScene' });
+  }
+
+  init(data: { mapData?: any, isDirty?: boolean }) { // MapData
+      this._isDirty = false; // Ensure clean slate on init
+      if (data && data.mapData) {
+          this.restoreData = data.mapData;
+          this.restoreDirty = data.isDirty || false;
+      } else {
+          this.restoreData = null;
+          this.restoreDirty = false;
+      }
   }
 
   create() {
@@ -61,12 +76,27 @@ export class EditorScene extends Phaser.Scene {
     // 0. Generate Editor Resources
     this.createEditorTextures();
 
-    // 0.1 Restore Textures for existing CustomObjects on scene start?
-    // Not strictly needed if we assume empty scene or we iterate objects later.
-    // Ideally we iterate existing custom objects and load their textures if preserved (not standard flow yet, usually empty scene or loaded via JSON which comes later)
-
     // 1. Grid Visualization
     this.createGrid();
+
+    // 1.5 Restore State if exists
+    if (this.restoreData) {
+        console.log("EditorScene: Restoring State from Preview Return");
+        try {
+            MapSerializer.deserialize(this, this.restoreData);
+            
+            // Delay reporting dirty state to ensure UI (EditorOverlay) has mounted and subscribed
+            this.time.delayedCall(200, () => {
+                if (this.restoreDirty) {
+                    this.markDirty();
+                } else {
+                    this.setClean();
+                }
+            });
+        } catch (e) {
+            console.error("EditorScene: Failed to restore state", e);
+        }
+    }
 
     // 1.5 Cursor Graphics
     this.cursorGraphics = this.add.graphics();
@@ -137,7 +167,6 @@ export class EditorScene extends Phaser.Scene {
       // I/O Commands from Overlay
       EventBus.on('editor-command-save', this.handleSaveProject, this);
       EventBus.on('editor-command-save-file', this.handleSaveFile, this);
-      EventBus.on('editor-command-export', this.handleExportProject, this);
       EventBus.on('editor-command-import', this.handleImportProject, this);
       EventBus.on('editor-command-preview', this.handlePreviewMap, this);
       
@@ -338,6 +367,7 @@ export class EditorScene extends Phaser.Scene {
       const texture = this.getTextureKey(index);
       if (texture) {
           const tile = this.add.image(gx * this.TILE_SIZE + 16, gy * this.TILE_SIZE + 16, texture);
+          tile.setDepth(0); // Ensure tiles are at bottom
           this.tiles.set(key, tile);
       }
   }
@@ -410,6 +440,12 @@ export class EditorScene extends Phaser.Scene {
           properties,
           scripts: scripts || []
       };
+      
+      // Apply saved rotation to Visuals
+      if (obj.rotation !== 0) {
+          container.setAngle(obj.rotation);
+      }
+      
       this.editorObjects.set(id, obj);
   }
 
@@ -439,7 +475,6 @@ export class EditorScene extends Phaser.Scene {
       // I/O
       EventBus.off('editor-command-save', this.handleSaveProject, this);
       EventBus.off('editor-command-save-file', this.handleSaveFile, this);
-      EventBus.off('editor-command-export', this.handleExportProject, this);
       
       EventBus.off('editor-input-enable', this.handleInputEnable, this);
       EventBus.off('exit-game', this.handleExit, this);
@@ -578,9 +613,9 @@ export class EditorScene extends Phaser.Scene {
   private async handleSaveFile(data: { name: string }) {
       try {
           const mapData = MapSerializer.serialize(this, data.name);
-          // Download as Editor Format (.editor.json)
-          await ProjectStorage.downloadProject(mapData, 'editor'); 
-          EventBus.emit('editor-save-success', data.name); // Using save success for notification
+          // Download as Game Format (Unified)
+          await ProjectStorage.downloadProject(mapData); 
+          EventBus.emit('editor-save-success', data.name); 
           this.setClean();
       } catch (err) {
           console.error(err);
@@ -588,17 +623,7 @@ export class EditorScene extends Phaser.Scene {
       }
   }
 
-  private async handleExportProject(data: { name: string }) {
-      try {
-          const mapData = MapSerializer.serialize(this, data.name);
-          // Download as Game Format (.game.json)
-          await ProjectStorage.downloadProject(mapData, 'game'); 
-          EventBus.emit('editor-export-success');
-      } catch (err) {
-          console.error(err);
-          EventBus.emit('editor-io-error', 'Failed to Export Project');
-      }
-  }
+
 
   private handleImportProject(data: any) { // MapData
       try {
@@ -613,8 +638,12 @@ export class EditorScene extends Phaser.Scene {
   private handlePreviewMap() {
     const editorData = MapSerializer.serialize(this, "Preview");
     const gameData = MapSerializer.translateToGameFormat(editorData);
+    EventBus.emit('editor-preview-start');
+    const isDirty = this.isDirty;
     this.scene.start('MainGameScene', { 
         mapData: gameData, 
+        editorMapData: editorData, // Pass original for restoration
+        editorDirty: isDirty,
         isPreview: true 
     });
   }
@@ -770,6 +799,7 @@ export class EditorScene extends Phaser.Scene {
               existing.destroy();
           }
           const tile = this.add.image(tileX * this.TILE_SIZE + 16, tileY * this.TILE_SIZE + 16, texture);
+          tile.setDepth(0); // Ensure tiles are at bottom
           this.tiles.set(key, tile);
           this.markDirty();
       }
@@ -979,6 +1009,7 @@ export class EditorScene extends Phaser.Scene {
 
       // Visuals
       const container = this.add.container(x, y);
+      container.setDepth(10); // Ensure Objects are above tiles
       const gfx = this.add.graphics();
       
       if (type === 'TriggerZone') {

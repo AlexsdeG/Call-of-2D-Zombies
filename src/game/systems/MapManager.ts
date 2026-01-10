@@ -117,6 +117,7 @@ export class MapManager {
                 const cost = obj.properties?.cost || 1000;
                 const zone = obj.properties?.zone !== undefined ? obj.properties.zone : -1;
                 const door = new Door(this.scene, obj.x, obj.y, cost, zone, this.pathfindingManager!);
+                door.setDepth(10);
                 doorGroup.add(door);
              } else if (obj.type === 'barricade') {
                 // Tiled Objects seem to be already centered or correctly positioned for the sprite origin.
@@ -150,6 +151,7 @@ export class MapManager {
                     }
                 }
                 
+                bar.setDepth(10);
                 barricadeGroup.add(bar);
 
                 // Add to interactable group so player can interact
@@ -169,6 +171,7 @@ export class MapManager {
                      this.wallLayer,
                      targetLayer
                  );
+                 // Spawner is logic only, no setDepth needed
                  spawners.push(spawner);
              } else if (obj.type === 'spawn') {
                  // Move player to spawn
@@ -182,6 +185,7 @@ export class MapManager {
                      const h = obj.height || 32;
                      
                      const wb = new WallBuy(this.scene, obj.x, obj.y, w, h, weapon, cost);
+                     wb.setDepth(10);
                      wallBuyGroup.add(wb);
                  }
              } else if (obj.type === 'mystery_box') {
@@ -190,6 +194,7 @@ export class MapManager {
                     const isFirst = this.getProperty(obj, 'first', false);
 
                     const box = new MysteryBox(this.scene, obj.x, obj.y, rotation, isFirst);
+                    box.setDepth(10);
                     mysteryBoxGroup.add(box);
                  }
              } else if (obj.type === 'perk_machine') {
@@ -199,11 +204,13 @@ export class MapManager {
                      const perkType = Object.values(PerkType).find(p => p === perkStr) || PerkType.JUGGERNOG;
                      
                      const machine = new PerkMachine(this.scene, obj.x, obj.y, perkType as PerkType);
+                     machine.setDepth(10);
                      perkMachineGroup.add(machine);
                  }
              } else if (obj.type === 'pack_a_punch') {
                  if (packAPunchGroup) {
                      const pap = new PackAPunch(this.scene, obj.x, obj.y);
+                     pap.setDepth(10);
                      packAPunchGroup.add(pap);
                  }
              } else if (obj.type === 'CustomObject') {
@@ -228,6 +235,9 @@ export class MapManager {
                          entity = s;
                      }
                      
+                     if (entity instanceof Phaser.GameObjects.Sprite || entity instanceof Phaser.GameObjects.Image) {
+                        entity.setDepth(10);
+                     }
                      customWallGroup.add(entity);
                      // Add static body manually via existing physics group
                      const body = (entity as Phaser.Physics.Arcade.Sprite).body as Phaser.Physics.Arcade.StaticBody;

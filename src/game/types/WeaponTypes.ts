@@ -21,6 +21,7 @@ export interface WeaponAttributes {
 export interface WeaponState {
     currentAmmo: number;
     totalAmmo: number; // Reserve ammo
+    maxTotalAmmo: number; // Cap for reserve ammo
     lastFired: number; // timestamp
     isReloading: boolean;
     reloadStartTime: number;

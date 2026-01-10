@@ -66,6 +66,7 @@ export class MainGameScene extends Phaser.Scene {
   private crosshair!: Phaser.GameObjects.Graphics;
 
   private isGameOver: boolean = false;
+  private isReady: boolean = false; // Initialization Flag
   private fpsEvent?: Phaser.Time.TimerEvent;
 
   // Event Handlers
@@ -76,6 +77,8 @@ export class MainGameScene extends Phaser.Scene {
   // Preview Mode State
   private isPreview: boolean = false;
   private previewMapData?: any;
+  private editorReturnData?: any; // To restore Editor state
+  private editorReturnDirty: boolean = false;
 
   constructor() {
     super({ key: 'MainGameScene' });
@@ -83,7 +86,11 @@ export class MainGameScene extends Phaser.Scene {
     this.onExitGame = () => {
         this.scene.stop();
         if (this.isPreview) {
-            this.scene.start('EditorScene'); // Return to Editor
+            EventBus.emit('editor-preview-stop');
+            this.scene.start('EditorScene', { 
+                mapData: this.editorReturnData,
+                isDirty: this.editorReturnDirty 
+            }); // Return to Editor with state
         } else {
             this.scene.start('MenuScene');
         }
@@ -115,19 +122,31 @@ export class MainGameScene extends Phaser.Scene {
     };
   }
 
-  init(data: { isPreview?: boolean, mapData?: any }) {
+  init(data: { isPreview?: boolean, mapData?: any, editorMapData?: any, editorDirty?: boolean }) {
       // Force stop EditorScene to prevent "Ghost Editor" / State Leakage
       this.scene.stop('EditorScene');
-
+      console.log('MainGameScene: Init', { data });
       if (data && data.isPreview) {
           this.isPreview = true;
           this.previewMapData = data.mapData;
+          this.editorReturnData = data.editorMapData;
+          this.editorReturnDirty = data.editorDirty || false;
+          
+          // Reset Stats for Preview (High Points for Testing)
+          useGameStore.getState().resetPlayerStats();
+          useGameStore.getState().updatePlayerStats({ points: 50000 });
       } else {
           // Single Player / Default Loading
           this.isPreview = false;
           this.previewMapData = undefined; // CLEAR IT
+          this.editorReturnData = undefined;
+          this.editorReturnDirty = false;
       }
-      console.log('MainGameScene: Init', { isPreview: this.isPreview });
+      console.log('MainGameScene: Init', { 
+          receivedData: data,
+          isPreview: this.isPreview, 
+          hasPreviewData: !!this.previewMapData 
+      });
   }
 
   create() {
@@ -150,6 +169,7 @@ export class MainGameScene extends Phaser.Scene {
     this.targetLayer = this.add.layer();
     this.targetLayer.setDepth(10); 
     
+    this.isReady = false; // Reset ready state
     this.isGameOver = false;
     this.physics.resume(); 
     this.input.setDefaultCursor('none');
@@ -225,7 +245,7 @@ export class MainGameScene extends Phaser.Scene {
         this.zombieGroup.children.each(z => {
             const zombie = z as Zombie;
             if (zombie.active) {
-                zombie.takeDamage(10000); // Massive damage
+                zombie.takeDamage(10000, true); // Massive damage, skip points
             }
             return true;
         });
@@ -266,10 +286,13 @@ export class MainGameScene extends Phaser.Scene {
 
     // 0. Setup Physics Groups
     this.bulletGroup = this.physics.add.group({ classType: Projectile, runChildUpdate: true, maxSize: 100 });
+    this.bulletGroup.setDepth(20);
+
     this.obstacleGroup = this.physics.add.staticGroup();
     this.targetGroup = this.physics.add.staticGroup();
     this.customWallGroup = this.physics.add.staticGroup();
     this.zombieGroup = this.physics.add.group({ classType: Zombie, runChildUpdate: true, collideWorldBounds: false }); 
+    this.zombieGroup.setDepth(15); // Zombies above objects 
     
     // Interactables
     this.doorGroup = this.physics.add.staticGroup({ classType: Door });
@@ -310,8 +333,10 @@ export class MainGameScene extends Phaser.Scene {
     let valid;
     
     if (this.isPreview && this.previewMapData) {
+        console.log("MainGameScene: Loading PREVIEW Map Data");
         valid = this.mapManager.validate(this.previewMapData);
     } else {
+        console.log("MainGameScene: Loading DEFAULT Map Data (Singleplayer)");
         valid = this.mapManager.validate(DEBUG_MAP);
     }
     
@@ -360,114 +385,107 @@ export class MainGameScene extends Phaser.Scene {
                     this.mysteryBoxGroup,
                     this.perkMachineGroup,
                     this.packAPunchGroup,
-                    this.customWallGroup // Pass custom walls!
+                    this.customWallGroup
                 );
+                
+                // --- Register Interactables & Colliders ---
+                this.doorGroup.children.each(d => { this.interactableGroup.add(d); return true; });
+                this.barricadeGroup.children.each(b => { this.interactableGroup.add(b); return true; });
+                this.wallBuyGroup.children.each(wb => { this.interactableGroup.add(wb); return true; });
+                this.mysteryBoxGroup.children.each(mb => { 
+                    this.interactableGroup.add(mb); 
+                    this.physics.add.collider(this.player, mb);
+                    return true; 
+                });
+                this.perkMachineGroup.children.each(pm => { this.interactableGroup.add(pm); this.physics.add.collider(this.player, pm); return true; });
+                this.packAPunchGroup.children.each(pap => { this.interactableGroup.add(pap); this.physics.add.collider(this.player, pap); return true; });
+                
+                // Collisions for MysteryBox
+                this.physics.add.collider(this.zombieGroup, this.mysteryBoxGroup);
+                this.physics.add.collider(this.zombieGroup, this.perkMachineGroup);
+                this.physics.add.collider(this.zombieGroup, this.packAPunchGroup);
+                
+                this.physics.add.collider(this.bulletGroup, this.mysteryBoxGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
+                this.physics.add.collider(this.bulletGroup, this.perkMachineGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
+                this.physics.add.collider(this.bulletGroup, this.packAPunchGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
+
+                // --- Initialize Systems Dependent on Objects ---
+                
+                // 4. Game Mode
+                this.gameMode = new SurvivalMode(this, this.player, this.spawners, this.zombieGroup);
+                this.gameMode.init();
+
+                // 3. Bake Pathfinding
+                if (this.mapManager['map']) {
+                     const allObstacles = [
+                         ...this.crates,
+                         ...this.targets,
+                         ...this.customWalls,
+                         ...this.doorGroup.getChildren() as Phaser.GameObjects.Sprite[],
+                         ...this.barricadeGroup.getChildren() as Phaser.GameObjects.Sprite[]
+                     ];
+                     this.pathfindingManager.buildGrid(this.mapManager['map'], allObstacles);
+                }
+
+                // 7. Setup Vision
+                const visionObstacles = [
+                    ...this.crates, 
+                    ...this.customWalls,
+                    ...this.doorGroup.getChildren() as Phaser.GameObjects.Sprite[]
+                ];
+                this.visionManager = new VisionManager(this);
+                this.visionManager.setup(this.player, visionObstacles);
+                this.visionManager.setTargetLayer(this.targetLayer);
+
+                // 8. Camera
+                this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+                this.cameras.main.setZoom(WORLD.DEFAULT_ZOOM);
+                this.cameras.main.setBounds(0, 0, 3000, 3000);
+                this.physics.world.setBounds(-500, -500, 3000, 3000); 
+
+                // 9. Effects
+                this.createEffects();
+                this.crosshair = this.add.graphics();
+                this.crosshair.setDepth(2000);
+
+                // 11. Collisions
+                this.setupCollisions();
+
+                // Events
+                this.events.on('bullet-hit-wall', (coords: {x: number, y: number}) => {
+                    if (!this.scene.isActive()) return;
+                    const emitter = this.data.get('sparkEmitter') as Phaser.GameObjects.Particles.ParticleEmitter;
+                    if (emitter) emitter.explode(5, coords.x, coords.y);
+                });
+
+                this.events.on('show-damage-text', (data: {x: number, y: number, amount: number}) => {
+                    this.showDamageText(data.x, data.y, data.amount, 'normal');
+                });
+
+                this.fpsEvent = this.time.addEvent({
+                  delay: 500, loop: true,
+                  callback: () => { EventBus.emit('debug-fps', Math.round(this.game.loop.actualFps)); }
+                });
+
+                // Register Scripts
+                if (valid.data.scripts) {
+                    this.scriptEngine.registerScripts(valid.data.scripts);
+                }
+
+                // Trigger Map Start
+                this.scriptEngine.trigger(TriggerType.ON_GAME_START);
+
+                EventBus.emit('scene-created', this);
+                EventBus.emit('scene-active', 'MainGameScene');
+                
+                this.time.delayedCall(100, () => {
+                    this.isReady = true; // Mark Scene as Ready
+                    EventBus.emit('scene-ready');
+                });
              }
         });
-        
-        // Register Scripts
-        if (valid.data.scripts) {
-            this.scriptEngine.registerScripts(valid.data.scripts);
-        }
-        
-        // Trigger Map Start
-        this.scriptEngine.trigger(TriggerType.ON_GAME_START);
     }
-    
-    this.doorGroup.children.each(d => { this.interactableGroup.add(d); return true; });
-    this.barricadeGroup.children.each(b => { this.interactableGroup.add(b); return true; });
-    this.wallBuyGroup.children.each(wb => { this.interactableGroup.add(wb); return true; });
-    this.mysteryBoxGroup.children.each(mb => { 
-        this.interactableGroup.add(mb); 
-        // Verify Collision
-        this.physics.add.collider(this.player, mb);
-        return true; 
-    });
-    this.perkMachineGroup.children.each(pm => { this.interactableGroup.add(pm); this.physics.add.collider(this.player, pm); return true; });
-    this.packAPunchGroup.children.each(pap => { this.interactableGroup.add(pap); this.physics.add.collider(this.player, pap); return true; });
-    
-    // Collisions for MysteryBox (WallBuy is visual only on walls)
-    this.physics.add.collider(this.zombieGroup, this.mysteryBoxGroup);
-    this.physics.add.collider(this.zombieGroup, this.perkMachineGroup);
-    this.physics.add.collider(this.zombieGroup, this.packAPunchGroup);
-    
-    this.physics.add.collider(this.bulletGroup, this.mysteryBoxGroup, (b, box) => {
-        (b as Projectile).disableBody(true, true);
-    });
-    this.physics.add.collider(this.bulletGroup, this.perkMachineGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
-    this.physics.add.collider(this.bulletGroup, this.packAPunchGroup, (b, box) => { (b as Projectile).disableBody(true, true); });
-
-
-
-// ... in create() ...
-    // 4. Game Mode
-    this.gameMode = new SurvivalMode(this, this.player, this.spawners, this.zombieGroup);
-    this.gameMode.init();
-
-    // 3. Bake Pathfinding
-    if (this.mapManager['map']) {
-         const allObstacles = [
-             ...this.crates,
-             ...this.targets,
-             ...this.customWalls,
-             ...this.doorGroup.getChildren() as Phaser.GameObjects.Sprite[],
-             ...this.barricadeGroup.getChildren() as Phaser.GameObjects.Sprite[]
-         ];
-         this.pathfindingManager.buildGrid(this.mapManager['map'], allObstacles);
-    }
-
-    // 7. Setup Vision
-    const visionObstacles = [
-        ...this.crates, 
-        ...this.customWalls,
-        ...this.doorGroup.getChildren() as Phaser.GameObjects.Sprite[]
-    ];
-    this.visionManager = new VisionManager(this);
-    this.visionManager.setup(this.player, visionObstacles);
-    this.visionManager.setTargetLayer(this.targetLayer);
-
-    // 8. Camera
-    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
-    this.cameras.main.setZoom(WORLD.DEFAULT_ZOOM);
-    this.cameras.main.setBounds(0, 0, 3000, 3000);
-    this.physics.world.setBounds(-500, -500, 3000, 3000); 
-
-    // 9. Effects
-    this.createEffects();
-    this.crosshair = this.add.graphics();
-    this.crosshair.setDepth(2000);
-
-    // 11. Collisions
-    this.setupCollisions();
-
-    // Events
-      this.events.on('bullet-hit-wall', (coords: {x: number, y: number}) => {
-        if (!this.scene.isActive()) return;
-        const emitter = this.data.get('sparkEmitter') as Phaser.GameObjects.Particles.ParticleEmitter;
-        if (emitter) emitter.explode(5, coords.x, coords.y);
-    });
-
-    this.events.on('show-damage-text', (data: {x: number, y: number, amount: number}) => {
-        this.showDamageText(data.x, data.y, data.amount, 'normal');
-    });
-
-    // 12. UI Components
-    // React handles WeaponToast via EventBus 'weapon-switch'
-
-    this.fpsEvent = this.time.addEvent({
-      delay: 500, loop: true,
-      callback: () => { EventBus.emit('debug-fps', Math.round(this.game.loop.actualFps)); }
-    });
-
-    EventBus.emit('scene-created', this);
-    EventBus.emit('scene-active', 'MainGameScene');
-    
-    // Explicitly notify that we are ready to hide loading screen
-    // Small delay to ensure render
-    this.time.delayedCall(100, () => {
-        EventBus.emit('scene-ready');
-    });
-  }
+}
 
   shutdown() {
       console.log("MainGameScene: Shutdown (Merged)");
@@ -541,7 +559,7 @@ export class MainGameScene extends Phaser.Scene {
   }
 
   update(time: number, delta: number) {
-    if (this.isGameOver) return;
+    if (this.isGameOver || !this.isReady) return; // Block updates until ready
 
     if (this.player) {
       this.player.update(time, delta);

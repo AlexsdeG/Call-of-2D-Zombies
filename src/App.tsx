@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { GameState } from './types';
 import { useGameStore } from './store/useGameStore';
 import { PhaserGame } from './components/PhaserGame';
-import { PLAYER } from './config/constants';
+import { PLAYER, VERSION } from './config/constants';
 import { EventBus } from './game/EventBus';
 import { TestRunner } from './tests/testRunner';
 import { Loader2 } from 'lucide-react'; 
@@ -50,7 +50,7 @@ const MainMenu = () => {
   return (
     <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
       <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 4.4: File I/O Part 1</p>
+      <p className="text-gray-400 mb-8">Phase 4.4: File I/O Part 2</p>
       <div className="flex gap-4">
         <button 
           onClick={startGame}
@@ -69,7 +69,7 @@ const MainMenu = () => {
   );
 };
 
-const GameOverMenu = () => {
+const GameOverMenu = (props: { isPreview: boolean }) => {
     const setGameState = useGameStore((state) => state.setGameState);
     const resetPlayerStats = useGameStore((state) => state.resetPlayerStats);
     const { roundsSurvived, message } = useGameStore((state) => state.gameOverStats);
@@ -80,8 +80,15 @@ const GameOverMenu = () => {
         setGameState(GameState.GAME);
     };
 
+    const isPreview = props.isPreview;
+
     const toMenu = () => {
-        setGameState(GameState.MENU);
+        if (isPreview) {
+            EventBus.emit('exit-game'); // Trigger MainGameScene shutdown -> EditorScene
+            setGameState(GameState.EDITOR);
+        } else {
+            setGameState(GameState.MENU);
+        }
     };
 
     return (
@@ -107,7 +114,7 @@ const GameOverMenu = () => {
                     onClick={toMenu}
                     className="px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded font-bold text-gray-300 transition"
                 >
-                    MAIN MENU
+                    {isPreview ? "RETURN TO EDITOR" : "MAIN MENU"}
                 </button>
             </div>
         </div>
@@ -115,8 +122,17 @@ const GameOverMenu = () => {
 };
 
 /* ... PauseMenu, DebugOverlay ... */
-const PauseMenu = () => {
+const PauseMenu = (props: { isPreview: boolean }) => {
     const setGameState = useGameStore((state) => state.setGameState);
+
+    const handleQuit = () => {
+        if (props.isPreview) {
+            EventBus.emit('exit-game');
+            setGameState(GameState.EDITOR);
+        } else {
+            setGameState(GameState.MENU);
+        }
+    };
 
     return (
         <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white z-30 pointer-events-auto backdrop-blur-sm">
@@ -129,10 +145,10 @@ const PauseMenu = () => {
               RESUME
             </button>
             <button 
-              onClick={() => setGameState(GameState.MENU)}
+              onClick={handleQuit}
               className="px-6 py-3 bg-red-900 hover:bg-red-800 rounded font-bold transition text-center"
             >
-              QUIT TO MENU
+              {props.isPreview ? "RETURN TO EDITOR" : "QUIT TO MENU"}
             </button>
           </div>
         </div>
@@ -160,7 +176,7 @@ const DebugOverlay = () => {
   return (
     <div className="absolute bottom-0 right-0 p-2 bg-black/50 text-green-400 font-mono text-xs pointer-events-auto z-50 flex flex-col items-end gap-2">
       <div>FPS: {fps}</div>
-      <div>VER: 0.2.0</div>
+      <div>VER: {VERSION}</div>
       <button 
         onClick={runTests}
         className="px-2 py-1 bg-blue-900/50 hover:bg-blue-800 text-blue-200 border border-blue-700 rounded text-[10px]"
@@ -443,10 +459,27 @@ const App: React.FC = () => {
 
   }, [gameState, isLoaded]); // Removed prevGameState from dep array to avoid infinite loops, relying on ref
 
+  // Preview Mode State
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  useEffect(() => {
+      const startPreview = () => setIsPreviewMode(true);
+      const stopPreview = () => setIsPreviewMode(false);
+      EventBus.on('editor-preview-start', startPreview);
+      EventBus.on('editor-preview-stop', stopPreview);
+      return () => {
+          EventBus.off('editor-preview-start', startPreview);
+          EventBus.off('editor-preview-stop', stopPreview);
+      };
+  }, []);
+
   // Handle Global Events
   useEffect(() => {
       const handleTogglePause = () => {
-          if (gameState === GameState.GAME) {
+          if (isPreviewMode) {
+              // Allow pausing in preview mode now
+              setGameState(GameState.PAUSED);
+          } else if (gameState === GameState.GAME) {
               setGameState(GameState.PAUSED);
           } else if (gameState === GameState.PAUSED) {
               setGameState(GameState.GAME);
@@ -464,7 +497,7 @@ const App: React.FC = () => {
           EventBus.off('toggle-pause', handleTogglePause); 
           EventBus.off('game-over', handleGameOver);
       };
-  }, [gameState, setGameState]);
+  }, [gameState, setGameState, isPreviewMode]);
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-black select-none">
@@ -477,13 +510,14 @@ const App: React.FC = () => {
            {!isLoaded && <LoadingOverlay />}
            
            {isLoaded && gameState === GameState.MENU && <MainMenu />}
-           {gameState === GameState.GAME && <HUD />}
-           {gameState === GameState.PAUSED && <PauseMenu />}
-           {gameState === GameState.GAME_OVER && <GameOverMenu />}
-           {gameState === GameState.EDITOR && <EditorOverlay />}
-           {gameState === GameState.GAME && <InteractionPrompt />}
-            {gameState === GameState.GAME && <WeaponNameToast />}
-            {gameState === GameState.GAME && <ActivePowerUps />}
+           {(gameState === GameState.GAME || isPreviewMode) && <HUD />}
+           {gameState === GameState.PAUSED && <PauseMenu isPreview={isPreviewMode} />}
+           {gameState === GameState.GAME_OVER && <GameOverMenu isPreview={isPreviewMode} />}
+           {gameState === GameState.EDITOR && !isPreviewMode && <EditorOverlay />}
+           
+           {(gameState === GameState.GAME || isPreviewMode) && <InteractionPrompt />}
+           {(gameState === GameState.GAME || isPreviewMode) && <WeaponNameToast />}
+           {(gameState === GameState.GAME || isPreviewMode) && <ActivePowerUps />}
         </div>
       </div>
     </div>

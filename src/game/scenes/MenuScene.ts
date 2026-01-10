@@ -10,7 +10,7 @@ export class MenuScene extends Phaser.Scene {
     console.log('MenuScene: Active');
     
     const startGame = () => {
-        this.scene.start('MainGameScene');
+        this.scene.start('MainGameScene', { isPreview: false });
     };
 
     const startEditor = () => {

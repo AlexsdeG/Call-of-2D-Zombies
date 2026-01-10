@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 
 import { IInteractable } from '../interfaces/IInteractable';
 import { Player } from './Player';
-import { WEAPON_DEFS } from '../../config/constants';
+import { WEAPON_DEFS, POWERUP } from '../../config/constants';
 import { SoundManager } from '../systems/SoundManager';
 
 export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInteractable {
@@ -146,7 +146,7 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         MysteryBox.allBoxes.forEach(box => box.setActivity(true));
         
         // 60s Timer
-        MysteryBox.fireSaleTimer = scene.time.delayedCall(60000, () => {
+        MysteryBox.fireSaleTimer = scene.time.delayedCall(POWERUP.DURATION, () => {
              MysteryBox.endFireSale();
         });
     }
@@ -434,5 +434,12 @@ export class MysteryBox extends Phaser.Physics.Arcade.Sprite implements IInterac
         }
         
         super.destroy(fromScene);
+    }
+
+    public setDepth(value: number): this {
+        super.setDepth(value);
+        if (this.lidSprite) this.lidSprite.setDepth(value + 1);
+        if (this.weaponSprite) this.weaponSprite.setDepth(value + 5); 
+        return this;
     }
 }

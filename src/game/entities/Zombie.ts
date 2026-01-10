@@ -179,7 +179,7 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    public takeDamage(amount: number) {
+    public takeDamage(amount: number, skipPoints: boolean = false) {
         if (this.aiState === 'DEAD') return;
 
         // Check Insta-Kill
@@ -204,22 +204,24 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
         }
 
         if (this.health <= 0) {
-            this.die();
+            this.die(skipPoints);
         }
     }
 
-    private die() {
+    private die(skipPoints: boolean = false) {
         this.aiState = 'DEAD';
         this.setVelocity(0, 0);
         this.setTint(0x333333);
         if (this.body) this.body.enable = false;
 
-        const currentPoints = useGameStore.getState().playerStats.points;
-        let pointsToAdd = 100;
-        if (this.target.hasPowerUp(PowerUpType.DOUBLE_POINTS)) {
-            pointsToAdd *= POWERUP.DOUBLE_POINTS_MULTIPLIER;
+        if (!skipPoints) {
+            const currentPoints = useGameStore.getState().playerStats.points;
+            let pointsToAdd = 100;
+            if (this.target.hasPowerUp(PowerUpType.DOUBLE_POINTS)) {
+                pointsToAdd *= POWERUP.DOUBLE_POINTS_MULTIPLIER;
+            }
+            useGameStore.getState().updatePlayerStats({ points: currentPoints + pointsToAdd });
         }
-        useGameStore.getState().updatePlayerStats({ points: currentPoints + pointsToAdd });
 
         // PowerUp Drop Chance (e.g. 3% chance)
         if (Math.random() < 0.03) {

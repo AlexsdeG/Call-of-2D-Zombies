@@ -4,6 +4,7 @@ import { IInteractable } from '../interfaces/IInteractable';
 import { Player } from '../entities/Player';
 import { WEAPON_DEFS } from '../../config/constants';
 import { SoundManager } from '../systems/SoundManager';
+import { EventBus } from '../EventBus';
 
 export class WallBuy extends Phaser.GameObjects.Sprite implements IInteractable {
     private weaponKey: string;
@@ -47,12 +48,18 @@ export class WallBuy extends Phaser.GameObjects.Sprite implements IInteractable 
     }
 
     public interact(player: Player, delta?: number) {
+        if (!player.isInteractJustDown()) return;
+
+        // Pre-check for Ammo Full to avoid spending points
+        if (this.isAmmoRefill && player.weaponSystem.isAmmoFull(this.weaponKey)) {
+            EventBus.emit('show-notification', "Max Ammo!");
+            return;
+        }
+
         if (player.spendPoints(this.currentCost)) {
             if (this.isAmmoRefill) {
                 player.weaponSystem.refillAmmo(this.weaponKey);
                 SoundManager.play(this.scene, 'weapon_pickup'); 
-                
-                // Float Text
                 this.showFeedback("Ammo Refilled");
             } else {
                 player.equipWeapon(this.weaponKey);
@@ -84,6 +91,9 @@ export class WallBuy extends Phaser.GameObjects.Sprite implements IInteractable 
        const canAfford = player.points >= this.currentCost;
        
        if (this.isAmmoRefill) {
+           if (player.weaponSystem.isAmmoFull(this.weaponKey)) {
+               return { text: "Max Ammo", enabled: false };
+           }
            return { 
                text: `Press F for Ammo [${this.currentCost}]`,
                enabled: canAfford

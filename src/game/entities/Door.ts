@@ -22,6 +22,8 @@ export class Door extends Phaser.Physics.Arcade.Sprite implements IInteractable 
     }
 
     interact(player: Player): void {
+        if (!player.isInteractJustDown()) return;
+        
         const currentPoints = useGameStore.getState().playerStats.points;
         
         if (currentPoints >= this.cost) {

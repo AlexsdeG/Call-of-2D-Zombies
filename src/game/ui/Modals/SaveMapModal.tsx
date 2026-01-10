@@ -16,7 +16,8 @@ export const SaveMapModal: React.FC<SaveMapModalProps> = ({ initialName, isOpen,
   const handleSave = () => {
     if (!name.trim()) return;
     onSave(name, destination);
-    onClose();
+    // Don't close immediately. Let parent handle closure via prop or logic.
+    // This allows parent (EditorOverlay) to keep 'pendingPreview' active until success.
   };
 
   return (

@@ -71,6 +71,8 @@ export class PerkMachine extends Phaser.Physics.Arcade.Sprite implements IIntera
     }
 
     interact(player: Player, delta: number): void {
+        if (!player.isInteractJustDown()) return;
+
         const currentPoints = player.points;
         if (currentPoints >= this.cost) {
             if (player.spendPoints(this.cost)) {
@@ -92,5 +94,11 @@ export class PerkMachine extends Phaser.Physics.Arcade.Sprite implements IIntera
     destroy(fromScene?: boolean): void {
         if (this.label) this.label.destroy();
         super.destroy(fromScene);
+    }
+
+    public setDepth(value: number): this {
+        super.setDepth(value);
+        if (this.label) this.label.setDepth(value + 20);
+        return this;
     }
 }

@@ -84,6 +84,7 @@ const bar5 = { type: "barricade", x: (houseX + houseW) * 32 + 16, y: 30 * 32 + 1
 
 
 export const DEBUG_MAP: MapData = {
+    app: "call-of-2d-zombies",
     name: "Garden House",
     version: "1.2.0",
     width: W,

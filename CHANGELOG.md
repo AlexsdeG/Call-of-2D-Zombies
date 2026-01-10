@@ -3,7 +3,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.0] - 2026-01-09 - Phase 4 Step 4.4 (Map Serialization)
+## [0.2.1] - 2026-01-10 - Phase 4 Step 4.4 Part 2 (Map Serialization)
+### Added
+- **File I/O**:
+  - fully fixed File I/O system. fully working map loading and saving.
+  - editor preview gives you 50k points
+  - fix depth issue with tiles and objects in editor
+  - mystery box rotating bug fixed
+  - fix nuke points bug, triggered multiple times
+  - max ammo bug fixed, refill only reserve ammo + check if weapon is pack a punched
+  - if you have max ammo, you can't buy ammo
+
+## [0.2.0] - 2026-01-09 - Phase 4 Step 4.4 Part 1 (Map Serialization)
 ### Added
 - **File I/O**:
   - `src/game/systems/MapSerializer.ts`: Added Map Serialization and Deserialization logic.

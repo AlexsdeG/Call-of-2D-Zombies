@@ -15,6 +15,7 @@ export const ObjectEntitySchema = z.object({
 });
 
 export const MapDataSchema = z.object({
+  app: z.literal('call-of-2d-zombies'),
   name: z.string(),
   version: z.string(),
   width: z.number().int().positive(), // in tiles

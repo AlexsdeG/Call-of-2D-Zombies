@@ -1,5 +1,6 @@
 import { EditorScene } from '../scenes/EditorScene';
 import { MapData, MapDataSchema, MapObject } from '../../schemas/mapSchema';
+import { VERSION } from '../../config/constants';
 import { z } from 'zod';
 
 export class MapSerializer {
@@ -41,8 +42,9 @@ export class MapSerializer {
         });
         
         return {
+            app: "call-of-2d-zombies",
             name: name,
-            version: "0.2.0",
+            version: VERSION,
             width: dims.width,
             height: dims.height,
             tileSize: dims.tileSize,
@@ -57,6 +59,9 @@ export class MapSerializer {
             format: "editor" 
         };
     }
+    
+    public static get APP_TAG() { return "call-of-2d-zombies"; }
+    public static get CURRENT_VERSION() { return VERSION; }
     
     public static deserialize(scene: EditorScene, data: MapData) {
         scene.clearEditor();
@@ -94,6 +99,33 @@ export class MapSerializer {
         return MapDataSchema.safeParse(json);
     }
 
+    public static validateHeader(json: any): { valid: boolean, error?: string } {
+        if (!json || typeof json !== 'object') return { valid: false, error: "Invalid JSON" };
+        if (json.app !== this.APP_TAG) return { valid: false, error: "Invalid File Format: Missing or wrong 'app' tag" };
+        return { valid: true };
+    }
+
+    public static checkVersion(jsonVersion: string): { status: 'ok' | 'warning' | 'error', message?: string } {
+        // Simple string comparison for now, or semver if needed.
+        // Assuming strict equality for "latest" and simple check for older.
+        if (jsonVersion === this.CURRENT_VERSION) return { status: 'ok' };
+        
+        // If version is strictly older (e.g. 0.2.0 vs 0.2.1) -> Warning
+        // If version is newer -> Warning (might break)
+        // For this task user asked: "info prompt... if version number is lower than yours"
+        
+        // Very basic semantic check
+        const currentParts = this.CURRENT_VERSION.split('.').map(Number);
+        const jsonParts = jsonVersion.split('.').map(Number);
+        
+        for (let i = 0; i < 3; i++) {
+            if (jsonParts[i] > currentParts[i]) return { status: 'warning', message: `Map version (${jsonVersion}) is newer than Editor (${this.CURRENT_VERSION}). Some features may not work.` };
+            if (jsonParts[i] < currentParts[i]) return { status: 'warning', message: `Map version (${jsonVersion}) is older than Editor (${this.CURRENT_VERSION}). It will be upgraded upon save.` };
+        }
+        
+        return { status: 'ok' };
+    }
+
     // --- TRANSLATION LOGIC ---
 
     public static translateToGameFormat(data: MapData): MapData {
@@ -101,6 +133,7 @@ export class MapSerializer {
         const gameData: MapData = JSON.parse(JSON.stringify(data));
         
         // Add Header
+        (gameData as any).app = "call-of-2d-zombies";
         (gameData as any).format = "game";
         (gameData as any).exportedAt = Date.now();
         

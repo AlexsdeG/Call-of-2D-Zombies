@@ -67,6 +67,7 @@ export class WeaponSystem {
             state: {
                 currentAmmo: def.magSize,
                 totalAmmo: def.magSize * 4,
+                maxTotalAmmo: def.magSize * 4,
                 lastFired: 0,
                 isReloading: false,
                 reloadStartTime: 0
@@ -169,14 +170,21 @@ export class WeaponSystem {
         return this.inventory.some(entry => entry && entry.key === key);
     }
 
+    public isAmmoFull(key: string): boolean {
+        const entry = this.inventory.find(e => e && e.key === key);
+        if (!entry) return false;
+        return entry.state.totalAmmo >= entry.state.maxTotalAmmo;
+    }
+
     public refillAmmo(key: string) {
         const entry = this.inventory.find(e => e && e.key === key);
         if (entry) {
-            entry.state.currentAmmo = entry.attributes.magSize;
-            // Upgrade check: if upgraded, reserve might be bigger.
-            // For now use default * 4, but really we should store MaxReserve in state if dynamic.
-            // Re-using the formula:
-            entry.state.totalAmmo = entry.attributes.magSize * 4; 
+            // Refill Reserve Only (Stockpile)
+            entry.state.totalAmmo = entry.state.maxTotalAmmo;
+            
+            // Do NOT touch currentAmmo (Mag) as per user request
+            // entry.state.currentAmmo = entry.attributes.magSize; 
+            
             entry.state.isReloading = false;
             this.emitStats();
         }
@@ -185,8 +193,10 @@ export class WeaponSystem {
     public refillAllAmmo() {
         this.inventory.forEach(entry => {
             if (entry) {
-                entry.state.currentAmmo = entry.attributes.magSize;
-                entry.state.totalAmmo = entry.attributes.magSize * 4;
+                // Refill Reserve Only to its specific Max (PaP aware)
+                entry.state.totalAmmo = entry.state.maxTotalAmmo;
+                
+                // entry.state.currentAmmo = entry.attributes.magSize; 
                 entry.state.isReloading = false;
             }
         });
@@ -368,7 +378,8 @@ export class WeaponSystem {
         entry.attributes.damage *= 2;
         entry.attributes.magSize = Math.floor(entry.attributes.magSize * 1.5);
         // Update State
-        entry.state.totalAmmo = entry.attributes.magSize * 6; // More reserve
+        entry.state.maxTotalAmmo = entry.attributes.magSize * 6; // Limit increase
+        entry.state.totalAmmo = entry.state.maxTotalAmmo; // Fill it up on upgrade
         
         // Fill ammo
         entry.state.currentAmmo = entry.attributes.magSize;
