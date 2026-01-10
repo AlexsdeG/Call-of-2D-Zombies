@@ -79,7 +79,7 @@ export const EditorSidebar = () => {
      };
      
      EventBus.on('editor-tool-change', onExternalToolChange);
-     return () => EventBus.off('editor-tool-change', onExternalToolChange);
+     return () => { EventBus.off('editor-tool-change', onExternalToolChange); };
   }, []);
 
   // Sync Brush
@@ -141,6 +141,19 @@ export const EditorSidebar = () => {
      }
   };
 
+  // Tab Handler
+  const handleTabChange = (tab: EditorTab) => {
+      setActiveTab(tab);
+      
+      if (tab === 'tiles') {
+          // Auto-select Paint + Wall
+          handleTileSelect(1);
+      } else if (tab === 'objects') {
+          // Auto-select Select/Move
+          handleToolSelect('select');
+      }
+  };
+
   return (
     <div className="w-64 bg-gray-900 border-l border-gray-700 h-full flex flex-col text-gray-200 pointer-events-auto relative">
       {/* Header */}
@@ -151,21 +164,21 @@ export const EditorSidebar = () => {
       {/* Tabs */}
       <div className="flex border-b border-gray-700">
           <button 
-             onClick={() => setActiveTab('tiles')}
+             onClick={() => handleTabChange('tiles')}
              className={`flex-1 p-3 flex justify-center hover:bg-gray-800 transition ${activeTab === 'tiles' ? 'bg-gray-800 text-blue-400 border-b-2 border-blue-400' : ''}`}
              title="Tiles"
           >
               <Grid size={20} />
           </button>
           <button 
-             onClick={() => setActiveTab('objects')}
+             onClick={() => handleTabChange('objects')}
              className={`flex-1 p-3 flex justify-center hover:bg-gray-800 transition ${activeTab === 'objects' ? 'bg-gray-800 text-green-400 border-b-2 border-green-400' : ''}`}
              title="Objects"
           >
               <Box size={20} />
           </button>
           <button 
-             onClick={() => setActiveTab('settings')}
+             onClick={() => handleTabChange('settings')}
              className={`flex-1 p-3 flex justify-center hover:bg-gray-800 transition ${activeTab === 'settings' ? 'bg-gray-800 text-yellow-400 border-b-2 border-yellow-400' : ''}`}
              title="Settings"
           >

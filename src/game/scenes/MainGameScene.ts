@@ -817,7 +817,12 @@ export class MainGameScene extends Phaser.Scene {
     graphics.strokeRect(0, 0, gridSize, gridSize);
     graphics.generateTexture('grid', gridSize, gridSize);
     graphics.destroy();
-    const bg = this.add.tileSprite(1000, 1000, 3000, 3000, 'grid'); 
+    // Grid is 3000x3000px. Standard Position 0,0 with Origin 0,0 aligns with Map (0,0).
+    const bg = this.add.tileSprite(0, 0, 4000, 4000, 'grid'); 
+    bg.setOrigin(0, 0); // Align Top-Left to 0,0
+    bg.setPosition(-2000, -2000); // Cover Negative Space, -2000 is divisible by 32 (32 * 62.5). Wait. 2000/32 = 62.5. 
+    // We need a multiple of 32. 32 * 63 = 2016.
+    bg.setPosition(-2016, -2016);
     bg.setDepth(-100);
   }
   private createCrateTexture() { /* ... */
