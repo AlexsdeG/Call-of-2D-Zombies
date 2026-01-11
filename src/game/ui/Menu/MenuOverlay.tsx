@@ -4,13 +4,17 @@ import { useGameStore } from '../../../store/useGameStore';
 import { ProfileSection } from './ProfileSection';
 import { MainMenuButtons } from './MainMenuButtons';
 import { SaveLoadProfileModal } from './SaveLoadProfileModal';
+import { LoadoutScreen } from './LoadoutScreen';
+import { GameSetupScreen } from './GameSetupScreen';
 import { EventBus } from '../../EventBus';
 import { VERSION } from '../../../config/constants';
 
+type MenuView = 'MAIN' | 'LOADOUT' | 'SETUP';
+
 export const MenuOverlay = () => {
     const [showSaveLoad, setShowSaveLoad] = useState(false);
-    
-    // Init Profile Service on mount if not already loaded
+    const [currentView, setCurrentView] = useState<MenuView>('MAIN');
+
     // Init Profile Service on mount if not already loaded
     useEffect(() => {
         // Just sync current profile state, don't force reload from disk
@@ -30,12 +34,19 @@ export const MenuOverlay = () => {
         };
     }, []);
 
+    if (currentView === 'LOADOUT') {
+        return <LoadoutScreen onBack={() => setCurrentView('MAIN')} />;
+    }
+
+    if (currentView === 'SETUP') {
+        return <GameSetupScreen onBack={() => setCurrentView('MAIN')} />;
+    }
+
     return (
         <div className="absolute inset-0 bg-black text-white z-50 pointer-events-auto flex font-sans overflow-hidden">
             {/* Background Image / Video Placeholder */}
-            {/* We use a subtle gradient and maybe a parallax effect later */}
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-900 via-black to-black opacity-80" />
-            <div className="absolute inset-0 bg-[url('/assets/bg_pattern.png')] opacity-5 mix-blend-overlay" /> {/* Placeholder for texture */}
+            <div className="absolute inset-0 bg-[url('/assets/bg_pattern.png')] opacity-5 mix-blend-overlay" />
             
             {/* Content Container */}
             <div className="relative z-10 w-full h-full flex flex-col">
@@ -54,8 +65,9 @@ export const MenuOverlay = () => {
                          </div>
                          
                          <MainMenuButtons 
-                            onOpenLoadout={() => console.log('Loadout Clicked')} 
-                            onOpenSettings={() => console.log('Settings Clicked')}
+                            onDeploy={() => setCurrentView('SETUP')}
+                            onOpenLoadout={() => setCurrentView('LOADOUT')} 
+                            onOpenSettings={() => console.log("Settings")}
                             onOpenSaveLoad={() => setShowSaveLoad(true)}
                          />
                      </div>

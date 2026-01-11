@@ -3,6 +3,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.4] - 2026-01-11 - Phase 5 Step 5.2 (Customization UI)
+### Added
+- **Attachment System**:
+  - `src/config/attachmentDefs.ts`: Definitions for Scopes, Muzzles, Grips, and Magazines.
+  - `src/schemas/profileSchema.ts`: Added `loadouts` and `equippedAttachments` to Profile.
+- **UI**:
+  - `GameSetupScreen`: New pre-game screen for Difficulty and Map selection.
+  - `LoadoutScreen`: Weapon customization interface with stats visualization.
+  - `AttachmentSelector`: UI for browsing and equipping attachments.
+- **Gameplay**:
+  - `WeaponSystem`: Now applies attachment stats (Recoil, Range, Damage) to equipped weapons.
+
 ## [0.2.3] - 2026-01-11
 ### Added
 - **Profile System**: Added `ProfileService` using `localForage` for saving/loading player data.

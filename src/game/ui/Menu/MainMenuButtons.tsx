@@ -4,18 +4,20 @@ import { useGameStore } from '../../../store/useGameStore';
 import { GameState } from '../../../types';
 
 interface Props {
+    onDeploy: () => void;
     onOpenLoadout: () => void;
     onOpenSettings: () => void;
     onOpenSaveLoad: () => void;
 }
 
-export const MainMenuButtons: React.FC<Props> = ({ onOpenLoadout, onOpenSettings, onOpenSaveLoad }) => {
+export const MainMenuButtons: React.FC<Props> = ({ onDeploy, onOpenLoadout, onOpenSettings, onOpenSaveLoad }) => {
     const setGameState = useGameStore(state => state.setGameState);
     const resetPlayerStats = useGameStore(state => state.resetPlayerStats);
 
     const handlePlay = () => {
         resetPlayerStats();
-        setGameState(GameState.GAME);
+        // setGameState(GameState.GAME); // Moved to GameSetupScreen
+        onDeploy();
     };
 
     const handleEditor = () => {
@@ -46,7 +48,7 @@ export const MainMenuButtons: React.FC<Props> = ({ onOpenLoadout, onOpenSettings
                 sublabel="CUSTOMIZE WEAPONS" // Coming Soon
                 icon={<Backpack className="w-5 h-5" />} 
                 onClick={onOpenLoadout}
-                disabled // Phase 5.2
+                // Phase 5.2 - Enabled
             />
             
             <MenuButton

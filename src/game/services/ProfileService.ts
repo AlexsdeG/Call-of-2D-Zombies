@@ -2,6 +2,7 @@ import localforage from 'localforage';
 import { v4 as uuidv4 } from 'uuid';
 import { Profile, ProfileSchema, DEFAULT_PROFILE } from '../../schemas/profileSchema';
 import { EventBus } from '../EventBus';
+import { ATTACHMENTS, ATTACHMENT_SLOTS, AttachmentDef } from '../../config/attachmentDefs';
 
 const PROFILE_KEY = 'cod2d_profile_v1';
 

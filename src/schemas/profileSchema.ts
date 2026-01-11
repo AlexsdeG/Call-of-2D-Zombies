@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ATTACHMENT_SLOTS } from '../config/attachmentDefs';
 
 // --- SUB-SCHEMAS ---
 
@@ -9,6 +10,8 @@ export const WeaponStatsSchema = z.object({
   level: z.number().default(1),
   unlockedAttachments: z.array(z.string()).default([]),
   unlockedSkins: z.array(z.string()).default([]),
+  // Map of Slot (SCOPE) -> AttachmentID (red_dot)
+  equippedAttachments: z.record(z.enum(['SCOPE', 'MUZZLE', 'GRIP', 'MAGAZINE']), z.string()).default({}),
 });
 
 export const PlayerStatsSchema = z.object({
@@ -72,7 +75,7 @@ export const DEFAULT_PROFILE: Profile = {
         totalPlayTime: 0,
         headshotPercentage: 0
     },
-    weaponStats: {},
+    weaponStats: {}, // Loadouts will be initialized lazily or be empty by default
     unlocks: [],
     settings: {
         volumeMaster: 0.5,

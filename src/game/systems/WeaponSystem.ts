@@ -6,6 +6,8 @@ import { SoundManager } from './SoundManager';
 import { Projectile } from '../entities/Projectile';
 import { PerkType } from '../types/PerkTypes'; 
 import { PERK } from '../../config/constants';
+import { ProfileService } from '../services/ProfileService';
+import { ATTACHMENTS } from '../../config/attachmentDefs';
 
 interface WeaponEntry {
     key: keyof typeof WEAPON_DEFS;
@@ -61,13 +63,52 @@ export class WeaponSystem {
              return;
         }
 
+        // Apply Attachments
+        const profile = ProfileService.getProfile();
+        const loadout = profile?.weaponStats[weaponKey]?.equippedAttachments || {};
+        
+        // Multipliers
+        let damageMult = 1;
+        let rangeMult = 1;
+        let spreadMult = 1;
+        let recoilMult = 1;
+        let fireRateMult = 1;
+        let magSizeMult = 1;
+        let reloadTimeMult = 1;
+        let speedMult = 1; // Movement speed not yet on weapon attributes but could be added
+
+        Object.values(loadout).forEach(attId => {
+            const attDef = ATTACHMENTS[attId];
+            if (attDef && attDef.stats) {
+                if (attDef.stats.damageMult) damageMult *= attDef.stats.damageMult;
+                if (attDef.stats.rangeMult) rangeMult *= attDef.stats.rangeMult;
+                if (attDef.stats.spreadMult) spreadMult *= attDef.stats.spreadMult;
+                if (attDef.stats.recoilMult) recoilMult *= attDef.stats.recoilMult;
+                if (attDef.stats.fireRateMult) fireRateMult *= attDef.stats.fireRateMult;
+                if (attDef.stats.magSizeMult) magSizeMult *= attDef.stats.magSizeMult;
+                if (attDef.stats.reloadTimeMult) reloadTimeMult *= attDef.stats.reloadTimeMult;
+            }
+        });
+
+        // Apply to Base Attributes for this instance
+        const modifiedAttributes = { ...def };
+        modifiedAttributes.damage *= damageMult;
+        modifiedAttributes.range *= rangeMult;
+        modifiedAttributes.spread *= spreadMult;
+        modifiedAttributes.recoil *= recoilMult;
+        modifiedAttributes.fireRate /= fireRateMult; // Delay decreases as rate increases? No, fireRate is delay ms. higher rate = lower delay. 
+                                                     // Wait, usually Rate is RPM. If fireRate is delay in ms, then Multiplier > 1 means FASTER fire, so DELAY should be LOWER.
+                                                     // So fireRate (delay) /= mult. Correct.
+        modifiedAttributes.magSize = Math.floor(modifiedAttributes.magSize * magSizeMult);
+        modifiedAttributes.reloadTime *= reloadTimeMult; // Lower is better
+
         const newEntry: WeaponEntry = {
             key: weaponKey,
-            attributes: { ...def },
+            attributes: modifiedAttributes,
             state: {
-                currentAmmo: def.magSize,
-                totalAmmo: def.magSize * 4,
-                maxTotalAmmo: def.magSize * 4,
+                currentAmmo: modifiedAttributes.magSize,
+                totalAmmo: modifiedAttributes.magSize * 4,
+                maxTotalAmmo: modifiedAttributes.magSize * 4,
                 lastFired: 0,
                 isReloading: false,
                 reloadStartTime: 0
