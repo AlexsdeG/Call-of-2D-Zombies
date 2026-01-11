@@ -179,8 +179,8 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
         }
     }
 
-    public takeDamage(amount: number, skipPoints: boolean = false) {
-        if (this.aiState === 'DEAD') return;
+    public takeDamage(amount: number, skipPoints: boolean = false): boolean {
+        if (this.aiState === 'DEAD') return false;
 
         // Check Insta-Kill
         if (this.target.hasPowerUp(PowerUpType.INSTA_KILL)) {
@@ -205,7 +205,9 @@ export class Zombie extends Phaser.Physics.Arcade.Sprite {
 
         if (this.health <= 0) {
             this.die(skipPoints);
+            return true;
         }
+        return false;
     }
 
     private die(skipPoints: boolean = false) {

@@ -13,6 +13,17 @@ interface GameOverStats {
   message: string;
 }
 
+interface SessionReport {
+  xpGained: number;
+  levelUp: boolean;
+  oldLevel: number;
+  newLevel: number;
+  kills: number;
+  rounds: number;
+  timePlayed: number;
+  nextState: GameState; // Indicates where to go after stats
+}
+
 interface GameStore {
   gameState: GameState;
   playerStats: PlayerStats;
@@ -21,14 +32,23 @@ interface GameStore {
   currentRound: number; // New property
   isPreviewing: boolean;
   
+  // Profile State
+  profile: import('../schemas/profileSchema').Profile | null;
+  
+  // Post-Game Report
+  sessionReport: SessionReport | null;
+
   // Actions
   setGameState: (state: GameState) => void;
   setIsPreviewing: (val: boolean) => void;
   updatePlayerStats: (stats: Partial<PlayerStats>) => void;
   resetPlayerStats: () => void;
+  resetSessionStats: () => void;
   setGameOverStats: (stats: GameOverStats) => void;
   setActivePowerUps: (powerups: ActivePowerUpState[]) => void;
   setCurrentRound: (round: number) => void; // New action
+  setProfile: (profile: import('../schemas/profileSchema').Profile) => void;
+  setSessionReport: (report: SessionReport | null) => void;
 }
 
 const INITIAL_PLAYER_STATS: PlayerStats = { // Renamed constant
@@ -39,6 +59,8 @@ const INITIAL_PLAYER_STATS: PlayerStats = { // Renamed constant
   ammo: 0,
   maxAmmo: 0,
   points: 500, // Default starting points
+  kills: 0,
+  headshots: 0
 };
 
 export const useGameStore = create<GameStore>((set) => ({
@@ -48,6 +70,8 @@ export const useGameStore = create<GameStore>((set) => ({
   activePowerUps: [], // New list for UI
   currentRound: 1, // NEW: Initial current round
   isPreviewing: false,
+  profile: null, // Initial profile
+  sessionReport: null,
   
   setGameState: (state) => set({ gameState: state }),
   setIsPreviewing: (val) => set({ isPreviewing: val }),
@@ -61,9 +85,21 @@ export const useGameStore = create<GameStore>((set) => ({
     playerStats: INITIAL_PLAYER_STATS,
     activePowerUps: [],
     currentRound: 1, // NEW: Reset current round
-    isPreviewing: false
-  }), // Updated reference
+    isPreviewing: false,
+    sessionReport: null
+  }), 
+  
+  // Explicit session reset (Aliased to resetPlayerStats for now, but semantically clear)
+  resetSessionStats: () => set({
+     playerStats: INITIAL_PLAYER_STATS,
+     activePowerUps: [],
+     currentRound: 1,
+     sessionReport: null
+  }),
+
   setGameOverStats: (stats) => set({ gameOverStats: stats }),
   setActivePowerUps: (powerups: ActivePowerUpState[]) => set({ activePowerUps: powerups }), // New action
   setCurrentRound: (round: number) => set({ currentRound: round }), // NEW: Action implementation
+  setProfile: (profile) => set({ profile }),
+  setSessionReport: (report) => set({ sessionReport: report }),
 }));

@@ -19,10 +19,12 @@ import { PackAPunch } from '../entities/PackAPunch';
 import { PowerUp } from '../entities/PowerUp';
 import { PowerUpType } from '../types/PerkTypes';
 import { useGameStore } from '../../store/useGameStore';
+import { GameState } from '../../types';
 import { IGameMode } from '../gamemodes/IGameMode';
 import { SurvivalMode } from '../gamemodes/SurvivalMode';
 import { ScriptEngine } from '../systems/ScriptEngine';
 import { TriggerType } from '../../schemas/scriptSchema';
+import { ProfileService } from '../services/ProfileService';
 
 export class MainGameScene extends Phaser.Scene {
   private player!: Player;
@@ -31,6 +33,8 @@ export class MainGameScene extends Phaser.Scene {
   private pathfindingManager!: PathfindingManager;
   public scriptEngine!: ScriptEngine;
   private gameMode!: IGameMode;
+  
+  private startTime: number = 0;
   
   private crates: Phaser.GameObjects.Sprite[] = [];
   private targets: Phaser.GameObjects.Sprite[] = [];
@@ -79,18 +83,37 @@ export class MainGameScene extends Phaser.Scene {
   private previewMapData?: any;
   private editorReturnData?: any; // To restore Editor state
   private editorReturnDirty: boolean = false;
+  
+  // Session State
+  private statsSaved: boolean = false;
 
   constructor() {
     super({ key: 'MainGameScene' });
     
-    this.onExitGame = () => {
+    this.onExitGame = async () => {
+        // Save progress before exiting (if not preview)
+        const nextState = this.isPreview ? GameState.EDITOR : GameState.MENU;
+        
+        // If stats haven't been saved yet, this means we are initiating the exit flow.
+        // We save stats, generate report, and show Post-Game screen.
+        if (!this.statsSaved && !this.isPreview) {
+            await this.saveSessionStats(nextState);
+            useGameStore.getState().setGameState(GameState.POST_GAME_STATS);
+            return; // ABORT EXIT to show stats. Continue button will trigger exit-game again.
+        }
+        
+        // If stats ARE saved, or we are in preview, proceed with actual shutdown.
+        if (!this.statsSaved && this.isPreview) {
+             await this.saveSessionStats(nextState);
+        }
+
         this.scene.stop();
         if (this.isPreview) {
             EventBus.emit('editor-preview-stop');
             this.scene.start('EditorScene', { 
                 mapData: this.editorReturnData,
                 isDirty: this.editorReturnDirty 
-            }); // Return to Editor with state
+            }); 
         } else {
             this.scene.start('MenuScene');
         }
@@ -98,33 +121,82 @@ export class MainGameScene extends Phaser.Scene {
     };
 
     this.onRestartGame = () => {
-        // Full stop and start to ensure clean slate
-        this.scene.stop();
-        this.scene.start('MainGameScene');
+        this.saveSessionStats(GameState.GAME).then(() => {
+            this.scene.stop();
+            this.scene.start('MainGameScene');
+        });
     };
 
-    this.onGameOver = () => {
+    this.onGameOver = async () => {
         this.isGameOver = true;
         this.physics.pause();
         this.input.setDefaultCursor('default');
         
-        // Update Game Over Stats in Store
+        const nextState = GameState.GAME_OVER;
+        await this.saveSessionStats(nextState);
+        
+        // Access store directly (since we are outside React)
         if (this.gameMode) {
              const roundsSurvived = this.gameMode.getCurrentRound();
              const message = this.gameMode.getGameOverMessage ? this.gameMode.getGameOverMessage() : "GAME OVER";
-             
-             // Access store directly (since we are outside React)
              useGameStore.getState().setGameOverStats({
                  roundsSurvived,
                  message
              });
+             
+             if (!this.isPreview) {
+                 useGameStore.getState().setGameState(GameState.POST_GAME_STATS);
+             } else {
+                 useGameStore.getState().setGameState(GameState.GAME_OVER);
+             }
         }
     };
   }
 
+  private async saveSessionStats(nextState: GameState) {
+      // Don't save stats for Editor Previews
+      if (this.isPreview) return;
+      
+      // Prevent double saving (e.g. GameOver then Exit)
+      if (this.statsSaved) {
+          console.log("MainGameScene: Session Stats already saved. Skipping.");
+          return;
+      }
+      this.statsSaved = true;
+
+      if (this.gameMode && this.player) {
+           const roundsSurvived = this.gameMode.getCurrentRound();
+           
+           // Update Profile
+           const duration = (Date.now() - this.startTime) / 1000;
+           const sessionStats = {
+               kills: this.player.sessionStats.kills,
+               rounds: roundsSurvived,
+               headshots: this.player.sessionStats.headshots,
+               timePlayed: duration
+           };
+           
+           // Get Full Report
+           const report = await ProfileService.updateStats(sessionStats);
+           
+           if (report) {
+               console.log("MainGameScene: Setting Session Report", report);
+               useGameStore.getState().setSessionReport({
+                   ...report,
+                   nextState
+               });
+           }
+
+           await ProfileService.saveProfile();
+           console.log("MainGameScene: Session Stats Saved", sessionStats);
+      }
+  }
+
+
   init(data: { isPreview?: boolean, mapData?: any, editorMapData?: any, editorDirty?: boolean }) {
       // Force stop EditorScene to prevent "Ghost Editor" / State Leakage
       this.scene.stop('EditorScene');
+      this.statsSaved = false; // Reset for new session
       console.log('MainGameScene: Init', { data });
       if (data && data.isPreview) {
           this.isPreview = true;
@@ -141,6 +213,9 @@ export class MainGameScene extends Phaser.Scene {
           this.previewMapData = undefined; // CLEAR IT
           this.editorReturnData = undefined;
           this.editorReturnDirty = false;
+          
+          // Reset Session Stats for New Game
+          useGameStore.getState().resetSessionStats();
       }
       console.log('MainGameScene: Init', { 
           receivedData: data,
@@ -173,6 +248,7 @@ export class MainGameScene extends Phaser.Scene {
     this.isGameOver = false;
     this.physics.resume(); 
     this.input.setDefaultCursor('none');
+    this.startTime = Date.now();
     
     // Clear any previous spawners
     this.spawners = [];
@@ -478,7 +554,11 @@ export class MainGameScene extends Phaser.Scene {
                 EventBus.emit('scene-created', this);
                 EventBus.emit('scene-active', 'MainGameScene');
                 
-                this.time.delayedCall(100, () => {
+                // Reset Stats for new session
+    useGameStore.getState().resetPlayerStats();
+
+    // Start Main Logic
+    this.time.delayedCall(100, () => {
                     this.isReady = true; // Mark Scene as Ready
                     EventBus.emit('scene-ready');
                 });
@@ -779,7 +859,15 @@ export class MainGameScene extends Phaser.Scene {
 
       if (target instanceof Zombie) {
           this.player.addPoints(10);
-          target.takeDamage(damage);
+          const killed = target.takeDamage(damage);
+          if (killed) { // Check if died
+               // Track Kill
+               // Determine if headshot (simplified for now, maybe add hitLocation to recordKill)
+               this.player.recordKill(false); 
+               
+               // Add XP (e.g., 50 XP per kill)
+               ProfileService.addXp(50);
+          }
       } else {
           // Target Box Damage Logic
           target.setTint(0xff0000);

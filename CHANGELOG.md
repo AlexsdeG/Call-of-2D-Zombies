@@ -3,6 +3,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.3] - 2026-01-11
+### Added
+- **Profile System**: Added `ProfileService` using `localForage` for saving/loading player data.
+- **Modern Main Menu**: Replaced the basic menu with a "COD-style" `MenuOverlay`.
+    - Profile Banner showing Name, Level, and XP.
+    - Navigation Buttons with hover effects.
+    - Save/Load Manager for Import/Export of profiles.
+- **Persistence**: Player stats (Kills, Playtime, Rounds) now persist to the profile.
+- **XP & Leveling**: Implemented basic XP gain from kills and rounds, with a visual XP bar.
+
+### Changed
+- Updated `MainGameScene` to track session stats (Kills, Start Time) and update profile on Game Over.
+- Incremented game version to 0.2.3.
+
 ## [0.2.2] - 2026-01-10
 ### Added
 - **Editor History**: Implemented Undo/Redo for tile painting, object placement, movement, and property updates.

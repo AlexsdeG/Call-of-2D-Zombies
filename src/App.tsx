@@ -12,11 +12,15 @@ import './tests/mapTests';
 import './tests/zombieTests';
 import './tests/interactionTests'; 
 import './tests/editorTests';
+import { runProfilePersistenceTest } from './tests/profilePersistenceTest';
+(window as any).runPersistenceTest = runProfilePersistenceTest;
 import { ActivePowerUps } from './game/ui/ActivePowerUps';
 import { EditorOverlay } from './game/ui/Editor/EditorOverlay';
 import Phaser from 'phaser';
 
 // --- UI COMPONENTS ---
+import { MenuOverlay } from './game/ui/Menu/MenuOverlay';
+import { PostGameStatsOverlay } from './game/ui/PostGameStatsOverlay';
 
 // --- HELPER HOOKS ---
 function usePrevious<T>(value: T): T | undefined {
@@ -38,36 +42,6 @@ const LoadingOverlay = () => {
     );
 };
 
-const MainMenu = () => {
-  const setGameState = useGameStore((state) => state.setGameState);
-  const resetPlayerStats = useGameStore((state) => state.resetPlayerStats);
-  
-  const startGame = () => {
-      resetPlayerStats();
-      setGameState(GameState.GAME);
-  }
-
-  return (
-    <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white z-20 pointer-events-auto">
-      <h1 className="text-6xl font-bold mb-4 text-red-600 tracking-wider">CALL OF 2D ZOMBIES</h1>
-      <p className="text-gray-400 mb-8">Phase 4.5: History</p>
-      <div className="flex gap-4">
-        <button 
-          onClick={startGame}
-          className="px-8 py-3 bg-red-700 hover:bg-red-600 rounded font-bold transition"
-        >
-          PLAY GAME
-        </button>
-        <button 
-          onClick={() => setGameState(GameState.EDITOR)}
-          className="px-8 py-3 bg-gray-700 hover:bg-gray-600 rounded font-bold transition"
-        >
-          MAP EDITOR
-        </button>
-      </div>
-    </div>
-  );
-};
 
 const GameOverMenu = (props: { isPreview: boolean }) => {
     const setGameState = useGameStore((state) => state.setGameState);
@@ -428,6 +402,12 @@ const App: React.FC = () => {
   useEffect(() => {
       const handleReady = () => setIsLoaded(true);
       EventBus.on('scene-ready', handleReady);
+      
+      // Initialize Profile Service Once
+      import('./game/services/ProfileService').then(({ ProfileService }) => {
+          ProfileService.init();
+      });
+
       return () => { EventBus.off('scene-ready', handleReady); };
   }, []);
 
@@ -509,15 +489,16 @@ const App: React.FC = () => {
            
            {!isLoaded && <LoadingOverlay />}
            
-           {isLoaded && gameState === GameState.MENU && <MainMenu />}
+           {isLoaded && gameState === GameState.MENU && <MenuOverlay />}
            {(gameState === GameState.GAME || isPreviewMode) && <HUD />}
            {gameState === GameState.PAUSED && <PauseMenu isPreview={isPreviewMode} />}
+           {gameState === GameState.POST_GAME_STATS && <PostGameStatsOverlay />}
            {gameState === GameState.GAME_OVER && <GameOverMenu isPreview={isPreviewMode} />}
            {gameState === GameState.EDITOR && !isPreviewMode && <EditorOverlay />}
            
-           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <InteractionPrompt />}
-           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <WeaponNameToast />}
-           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && <ActivePowerUps />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && gameState !== GameState.POST_GAME_STATS && <InteractionPrompt />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && gameState !== GameState.POST_GAME_STATS && <WeaponNameToast />}
+           {(gameState === GameState.GAME || (isPreviewMode && gameState !== GameState.PAUSED)) && gameState !== GameState.POST_GAME_STATS && <ActivePowerUps />}
         </div>
       </div>
     </div>

@@ -58,6 +58,23 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return this.scene && this.scene.sys.isActive() && this.body !== undefined;
   }
   private lastStoreSync: number = 0;
+
+  // Session Stats (Local to this player instance, for MP support later)
+  public sessionStats = {
+      kills: 0,
+      headshots: 0
+  };
+
+  public recordKill(isHeadshot: boolean) {
+      this.sessionStats.kills++;
+      if (isHeadshot) this.sessionStats.headshots++;
+      
+      // Sync to UI Store (Global for now, but supports local player view)
+      useGameStore.getState().updatePlayerStats({
+          kills: this.sessionStats.kills,
+          headshots: this.sessionStats.headshots
+      });
+  }
   private lastUiSync: number = 0;
   private readonly STORE_SYNC_INTERVAL = 1000;
   private readonly UI_SYNC_INTERVAL = 50; 

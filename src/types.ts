@@ -4,7 +4,8 @@ export enum GameState {
   GAME = 'GAME',
   PAUSED = 'PAUSED',
   EDITOR = 'EDITOR',
-  GAME_OVER = 'GAME_OVER'
+  GAME_OVER = 'GAME_OVER',
+  POST_GAME_STATS = 'POST_GAME_STATS'
 }
 
 export interface PlayerStats {
@@ -15,4 +16,6 @@ export interface PlayerStats {
   ammo: number;
   maxAmmo: number;
   points: number;
+  kills: number;
+  headshots: number;
 }

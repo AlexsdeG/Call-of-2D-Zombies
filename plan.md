@@ -139,17 +139,16 @@
 **Goal:** Long-term player progression.
 
 *   **Step 5.1: Profile Manager**
-    *   Define `ProfileSchema` (XP, WeaponLevels, Unlocks).
-    *   Implement `ProfileService`: Save/Load logic using `localForage`.
-    *   Implement "End of Game" logic: Calculate XP gained and update profile. show player and weapon stats and seperated xp for weapon and player. weapon xp is used to level up the weapon, like new attachments/skins
+    *   Define `ProfileSchema` (XP, WeaponLevels, Unlocks )
+    *   Implement `ProfileService`: Save/Load logic using `localForage`. add autosave feature, after rounds, returning to main menu, etc. add also saving symbol floating in bottom corner to show autosave.
+    *   Implement "End of Game" logic: Calculate XP gained and update profile. show player and weapon stats and seperated xp for weapon and player. weapon xp is used to level up the weapon, like new attachments/skins - add this before the end of game screen.
 
 *   **Step 5.2: Customization UI**
-    *   Create Main Menu "Loadout" screen.
+    *   Create Main Menu "Loadout" screen. with weapons, categories, weapon list, with weapon attachments, skins, etc.
+    *   Better weapon system, attachments, skins, etc. with better UI and better logic. like ui element to show weapon stats and show difference with differences in green and red what attachments do to the weapon stats.
     *   safe full profile in localstorage. and be able to import/export from filesystem
     *   Implement Weapon Kits: Select attachments/skins unlocked via Profile level.
-    *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
-    *   Implement "Game Settings": Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game.
-    *   Implement "Game Settings": load custom maps, preloaded ones already in system and from files system. as well as map selector of pre build maps.
+    *   Implement "Game Settings": before entiering new game, show extra game setup screen. Custom difficulty, Fog settings (adjust cone angle), Director intensity. which are shown directly before game to setup game. + load custom maps, preloaded ones already in system and from files system/local storage. as well as map selector of pre build maps.
 
 ---
 
