@@ -34,7 +34,10 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
     }, []);
 
     const selectedWeaponDef = WEAPON_DEFS[selectedWeaponKey as keyof typeof WEAPON_DEFS];
-    const weaponStats = profile?.weaponStats[selectedWeaponKey] || { equippedAttachments: {} as Record<string, string> };
+    const weaponStats = profile?.weaponStats[selectedWeaponKey] || { 
+        level: 1, xp: 0, kills: 0, headshots: 0, playTime: 0, 
+        unlockedAttachments: [], unlockedSkins: [], equippedAttachments: {} as Record<string, string> 
+    };
     const equippedAttachments = weaponStats.equippedAttachments || {} as Record<string, string>;
 
     const handleEquip = (attachmentId: string | undefined) => {
@@ -51,15 +54,15 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
         const updatedProfile = { ...profile };
         if (!updatedProfile.weaponStats[selectedWeaponKey]) {
             updatedProfile.weaponStats[selectedWeaponKey] = {
-                firstName: '',
                 kills: 0,
                 headshots: 0,
+                playTime: 0,
                 xp: 0,
                 level: 1,
                 unlockedAttachments: [],
                 unlockedSkins: [],
                 equippedAttachments: {}
-            } as any; // Using any temporarily as fallback creator is in Service
+            }; 
         }
         updatedProfile.weaponStats[selectedWeaponKey].equippedAttachments = updatedAttachments;
         setProfile(updatedProfile);
@@ -185,7 +188,12 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
                             onClick={() => { setSelectedWeaponKey(key); setActiveSlot(null); }}
                         >
                             <div className="font-bold">{def.name}</div>
-                            <div className="text-xs opacity-70">{def.category}</div>
+                            <div className="flex justify-between items-center text-xs opacity-70">
+                                <span>{def.category}</span>
+                                {profile?.weaponStats[key] && (
+                                    <span className="text-yellow-500">Lvl {profile.weaponStats[key].level}</span>
+                                )}
+                            </div>
                         </button>
                     ))}
                     {filteredWeapons.length === 0 && (
@@ -197,10 +205,55 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
                 </button>
             </div>
 
-            {/* CENTER: Configuration */}
             <div className="w-2/4 px-8 flex flex-col items-center">
-                <h1 className="text-4xl font-bold mb-2">{selectedWeaponDef.name}</h1>
-                <div className="text-gray-500 mb-8">{selectedWeaponDef.category}</div>
+                <div className="flex items-baseline gap-4 mb-2">
+                    <h1 className="text-4xl font-bold">{selectedWeaponDef.name}</h1>
+                    <span className="text-2xl text-yellow-500 font-bold">LEVEL {weaponStats.level || 1}</span>
+                </div>
+                
+                {/* XP Bar */}
+                <div className="w-full mb-6">
+                    {(() => {
+                        const lvl = weaponStats.level || 1;
+                        const currXp = weaponStats.xp || 0;
+                        const prevReq = lvl === 1 ? 0 : Math.pow(lvl - 1, 2) * 250;
+                        const nextReq = Math.pow(lvl, 2) * 250;
+                        const progress = Math.min(100, Math.max(0, ((currXp - prevReq) / (nextReq - prevReq)) * 100));
+                        
+                        return (
+                            <div className="relative w-full h-4 bg-gray-800 rounded-full overflow-hidden border border-gray-700">
+                                <div className="absolute top-0 left-0 h-full bg-yellow-600 transition-all duration-300" style={{ width: `${progress}%` }} />
+                                <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold tracking-wider z-10 text-white/80">
+                                    {Math.floor(currXp)} / {nextReq} XP
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+
+                <div className="flex gap-8 text-sm text-gray-400 mb-8 border-b border-gray-800 pb-4 w-full justify-center">
+                    <div className="flex flex-col items-center">
+                        <span className="font-bold text-white text-lg">{(weaponStats.kills || 0).toLocaleString()}</span>
+                        <span className="text-xs tracking-wider">KILLS</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <span className="font-bold text-white text-lg">{(weaponStats.headshots || 0).toLocaleString()}</span>
+                        <span className="text-xs tracking-wider">HEADSHOTS</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <span className="font-bold text-white text-lg">
+                            {(() => {
+                                const sec = weaponStats.playTime || 0;
+                                const hrs = Math.floor(sec / 3600);
+                                const mins = Math.floor((sec % 3600) / 60);
+                                return `${hrs}h ${mins}m`;
+                            })()}
+                        </span>
+                        <span className="text-xs tracking-wider">PLAY TIME</span>
+                    </div>
+                </div>
+
+                <div className="text-gray-500 mb-2">{selectedWeaponDef.category}</div>
 
                 {/* Gun Visualization (Placeholder) */}
                 <div className="w-full h-64 bg-gray-900 rounded mb-8 flex items-center justify-center border border-gray-800 relative">
@@ -227,10 +280,11 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
                 <div className="w-full h-64">
                     {activeSlot ? (
                         <AttachmentSelector 
-                            slot={activeSlot} 
+                            slot={activeSlot}
                             selectedId={equippedAttachments[activeSlot]}
                             onSelect={handleEquip} 
                             onHover={setHoveredAttachmentId}
+                            weaponLevel={weaponStats.level || 1}
                         />
                     ) : (
                         <div className="text-center text-gray-500 mt-10">Select an attachment slot to customize</div>

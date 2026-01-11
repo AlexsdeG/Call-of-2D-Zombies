@@ -2,7 +2,7 @@ import localforage from 'localforage';
 import { v4 as uuidv4 } from 'uuid';
 import { Profile, ProfileSchema, DEFAULT_PROFILE } from '../../schemas/profileSchema';
 import { EventBus } from '../EventBus';
-import { ATTACHMENTS, ATTACHMENT_SLOTS, AttachmentDef } from '../../config/attachmentDefs';
+import { ATTACHMENTS } from '../../config/attachmentDefs';
 
 const PROFILE_KEY = 'cod2d_profile_v1';
 
@@ -164,13 +164,42 @@ export class ProfileService {
         // XP Logic (Simple: 10xp per kill, 100 per round)
         const xpGained = (sessionStats.kills * 10) + (sessionStats.rounds * 100);
         const levelInfo = this.addXp(xpGained);
+
+        // Weapon XP Logic
+        const weaponXpInfo: Record<string, { oldLevel: number, newLevel: number, levelUp: boolean, xpGained: number }> = {};
+        if ((sessionStats as any).weaponUsage) {
+            const usage = (sessionStats as any).weaponUsage as Record<string, { kills: number, timePlayed: number, headshots: number }>;
+            Object.entries(usage).forEach(([key, stats]) => {
+                if (key && this.currentProfile) {
+                     // Ensure entry exists
+                     if (!this.currentProfile.weaponStats[key]) {
+                         this.currentProfile.weaponStats[key] = {
+                             kills: 0, headshots: 0, xp: 0, level: 1, playTime: 0,
+                             unlockedAttachments: [], unlockedSkins: [], equippedAttachments: {}
+                         };
+                     }
+                
+                     // 15 XP per Kill, 1 XP per second played
+                     const wXp = (stats.kills * 15) + Math.floor(stats.timePlayed / 1000); 
+                     const info = this.addWeaponXp(key, wXp);
+                     weaponXpInfo[key] = { ...info, xpGained: wXp };
+                     
+                     // Update Weapon Persistent Stats
+                     const ws = this.currentProfile.weaponStats[key];
+                     ws.kills += stats.kills;
+                     ws.headshots += stats.headshots;
+                     ws.playTime = (ws.playTime || 0) + Math.floor(stats.timePlayed / 1000);
+                }
+            });
+        }
         
         this.saveProfile();
         
         return {
             xpGained,
             ...levelInfo,
-            ...sessionStats
+            ...sessionStats,
+            weaponXpInfo
         };
     }
     
@@ -193,7 +222,53 @@ export class ProfileService {
             levelUp: this.currentProfile.level > oldLevel
         };
     }
-    
+
+    static addWeaponXp(weaponKey: string, amount: number) {
+        if (!this.currentProfile || !this.currentProfile.weaponStats[weaponKey]) {
+            return { oldLevel: 1, newLevel: 1, levelUp: false };
+        }
+
+        const ws = this.currentProfile.weaponStats[weaponKey];
+        const oldLevel = ws.level;
+        ws.xp += amount;
+
+        // Weapon Level Curve: Level^2 * 100 (Easier than player level)
+        // Lvl 1->2: 400 XP. 
+        // 10 kills (150xp) + 5 mins (300xp) ~= 1 game to level up early on.
+        const getWeaponXpForLevel = (lvl: number) => Math.pow(lvl, 2) * 250;
+
+        let nextLevelXp = getWeaponXpForLevel(ws.level);
+        while (ws.xp >= nextLevelXp) {
+            ws.level++;
+            nextLevelXp = getWeaponXpForLevel(ws.level);
+        }
+
+        const levelUp = ws.level > oldLevel;
+        
+        if (levelUp) {
+            this.checkUnlockables(weaponKey, ws.level);
+        }
+
+        return { oldLevel, newLevel: ws.level, levelUp };
+    }
+
+    private static checkUnlockables(weaponKey: string, level: number) {
+        if (!this.currentProfile) return;
+        
+        const ws = this.currentProfile.weaponStats[weaponKey];
+
+        // Check Attachments
+        Object.values(ATTACHMENTS).forEach(att => {
+            if (att.unlockLevel <= level) {
+                if (!ws.unlockedAttachments.includes(att.id)) {
+                    ws.unlockedAttachments.push(att.id);
+                    // Could emit a toast here
+                    console.log(`Unlocked Attachment: ${att.name} for ${weaponKey}`);
+                }
+            }
+        });
+    }
+
     // --- AUTOSAVE ---
     
     private static startAutoSave() {

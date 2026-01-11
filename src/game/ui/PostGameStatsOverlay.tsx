@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/useGameStore';
 import { Trophy, Clock, Skull, ChevronRight, Star } from 'lucide-react';
+import { WEAPON_DEFS } from '../../config/constants';
 import { GameState } from '../../types';
 
 export const PostGameStatsOverlay = () => {
@@ -22,7 +23,9 @@ export const PostGameStatsOverlay = () => {
 
     if (!sessionReport) return null;
 
-    const { xpGained, levelUp, newLevel, kills, rounds, timePlayed, nextState } = sessionReport;
+    if (!sessionReport) return null;
+    const { xpGained, levelUp, newLevel, kills, rounds, timePlayed, nextState, weaponXpInfo } = sessionReport;
+
 
     // Calculate XP Progress for the CURRENT (new) level
     const prevLevelThreshold = Math.pow(newLevel - 1, 2) * 500;
@@ -84,6 +87,39 @@ export const PostGameStatsOverlay = () => {
                     {Math.round(levelMax - levelXp)} XP TO NEXT LEVEL
                 </div>
             </div>
+
+            {/* Weapon XP Section */}
+            {weaponXpInfo && Object.keys(weaponXpInfo).length > 0 && (
+                <div className="w-full max-w-4xl px-8 mb-8">
+                    <h3 className="text-gray-400 font-bold mb-4 tracking-widest text-sm border-b border-gray-800 pb-2">WEAPON PROGRESSION</h3>
+                    <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-700">
+                        {Object.entries(weaponXpInfo).map(([key, info], idx) => {
+                            const def = WEAPON_DEFS[key as keyof typeof WEAPON_DEFS];
+                            if (!def) return null;
+                            // Simplified bar logic for now, showing full animated bar to indicate "Gained XP"
+                            return (
+                                <div key={key} className="flex-shrink-0 w-64 bg-gray-900/80 p-4 rounded border border-gray-700 animate-in slide-in-from-right fade-in duration-500 fill-mode-backwards" style={{ animationDelay: `${500 + (idx * 100)}ms` }}>
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="font-bold text-white">{def.name}</div>
+                                            <div className="text-xs text-gray-500">{def.category}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-yellow-500 text-lg font-bold">Lvl {info.newLevel}</div>
+                                            {info.levelUp && <div className="text-[10px] text-green-400 font-bold animate-pulse">LEVEL UP!</div>}
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-right text-yellow-400 mb-1">+{info.xpGained} XP</div>
+                                    <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                                        <div className="h-full bg-yellow-600 w-full animate-[pulse_2s_infinite]" /> 
+                                        {/* Simplified bar for now */}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Level Up Celebration */}
             {levelUp && (

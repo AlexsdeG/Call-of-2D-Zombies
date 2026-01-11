@@ -62,12 +62,21 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   // Session Stats (Local to this player instance, for MP support later)
   public sessionStats = {
       kills: 0,
-      headshots: 0
+      headshots: 0,
+      weaponUsage: {} as Record<string, { kills: number, headshots: number, timePlayed: number }>
   };
 
-  public recordKill(isHeadshot: boolean) {
+  public recordKill(isHeadshot: boolean, weaponKey?: string) {
       this.sessionStats.kills++;
       if (isHeadshot) this.sessionStats.headshots++;
+      
+      if (weaponKey) {
+          if (!this.sessionStats.weaponUsage[weaponKey]) {
+              this.sessionStats.weaponUsage[weaponKey] = { kills: 0, headshots: 0, timePlayed: 0 };
+          }
+          this.sessionStats.weaponUsage[weaponKey].kills++;
+          if (isHeadshot) this.sessionStats.weaponUsage[weaponKey].headshots++;
+      }
       
       // Sync to UI Store (Global for now, but supports local player view)
       useGameStore.getState().updatePlayerStats({
@@ -225,6 +234,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.updateInteractionPrompt();
 
     this.updateGlobalState(time);
+    
+    // Track Weapon Playtime
+    const currentWeapon = this.weaponSystem.getActiveWeaponStats();
+    if (currentWeapon && currentWeapon.key) {
+        const key = currentWeapon.key;
+        if (!this.sessionStats.weaponUsage[key]) {
+             this.sessionStats.weaponUsage[key] = { kills: 0, headshots: 0, timePlayed: 0 };
+        }
+        this.sessionStats.weaponUsage[key].timePlayed += delta; 
+    }
   }
 
   private handleActions(time: number, delta: number) {

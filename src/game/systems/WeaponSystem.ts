@@ -91,7 +91,7 @@ export class WeaponSystem {
         });
 
         // Apply to Base Attributes for this instance
-        const modifiedAttributes = { ...def };
+        const modifiedAttributes = { ...def, key: weaponKey }; // Injecy Key
         modifiedAttributes.damage *= damageMult;
         modifiedAttributes.range *= rangeMult;
         modifiedAttributes.spread *= spreadMult;

@@ -1,5 +1,7 @@
 export interface WeaponAttributes {
     name: string;
+    // Modifiable Attributes (By Allocating Points or Attachments)
+    key?: string; // Injected Key for tracking
     damage: number;
     fireRate: number; // Time between shots in ms
     magSize: number;

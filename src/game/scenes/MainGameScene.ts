@@ -863,7 +863,8 @@ export class MainGameScene extends Phaser.Scene {
           if (killed) { // Check if died
                // Track Kill
                // Determine if headshot (simplified for now, maybe add hitLocation to recordKill)
-               this.player.recordKill(false); 
+               const weaponKey = bullet.getData('weaponKey');
+               this.player.recordKill(false, weaponKey); 
                
                // Add XP (e.g., 50 XP per kill)
                ProfileService.addXp(50);

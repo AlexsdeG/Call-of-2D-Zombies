@@ -37,6 +37,7 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
         
         // Store all necessary stats for damage calculation on impact
         this.setData('stats', weaponStats);
+        this.setData('weaponKey', weaponStats.key || 'UNKNOWN'); // Ensure WeaponSystem passes key in attrs or handled separately
     }
 
     preUpdate(time: number, delta: number) {
