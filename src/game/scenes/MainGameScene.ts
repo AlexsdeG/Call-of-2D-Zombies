@@ -173,7 +173,8 @@ export class MainGameScene extends Phaser.Scene {
                kills: this.player.sessionStats.kills,
                rounds: roundsSurvived,
                headshots: this.player.sessionStats.headshots,
-               timePlayed: duration
+               timePlayed: duration,
+               weaponUsage: this.player.sessionStats.weaponUsage // Pass weapon stats
            };
            
            // Get Full Report

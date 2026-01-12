@@ -182,7 +182,7 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
                             key={key}
                             className={`w-full text-left p-4 rounded border transition-all ${
                                 selectedWeaponKey === key 
-                                ? 'bg-yellow-500 text-black border-yellow-500' 
+                                ? 'bg-yellow-500 text-black border-yellow-500 hover:bg-yellow-400' 
                                 : 'bg-gray-900 border-gray-800 hover:bg-gray-800 text-gray-300'
                             }`}
                             onClick={() => { setSelectedWeaponKey(key); setActiveSlot(null); }}
@@ -190,8 +190,14 @@ export const LoadoutScreen: React.FC<LoadoutScreenProps> = ({ onBack }) => {
                             <div className="font-bold">{def.name}</div>
                             <div className="flex justify-between items-center text-xs opacity-70">
                                 <span>{def.category}</span>
-                                {profile?.weaponStats[key] && (
-                                    <span className="text-yellow-500">Lvl {profile.weaponStats[key].level}</span>
+                                {profile?.weaponStats[key] ? (
+                                    <span className={selectedWeaponKey === key ? 'text-black/70' : 'text-yellow-500'}>
+                                        Lvl {profile.weaponStats[key].level}
+                                    </span>
+                                ) : (
+                                    <span className={selectedWeaponKey === key ? 'text-black/50' : 'text-gray-600'}>
+                                        Lvl 1
+                                    </span>
                                 )}
                             </div>
                         </button>
