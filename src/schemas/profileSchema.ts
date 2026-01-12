@@ -8,6 +8,7 @@ export const WeaponStatsSchema = z.object({
   headshots: z.number().default(0),
   xp: z.number().default(0),
   level: z.number().default(1),
+  playTime: z.number().default(0), // Seconds
   unlockedAttachments: z.array(z.string()).default([]),
   unlockedSkins: z.array(z.string()).default([]),
   // Map of Slot (SCOPE) -> AttachmentID (red_dot)

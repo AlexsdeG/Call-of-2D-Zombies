@@ -1,7 +1,10 @@
-```
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.2.5] - 2026-01-11
+### Added
+- **Weapon XP System**: Weapons now gain XP and Level up based on kills and playtime.
+- **Attachment Unlocking**: Attachments are now locked behind specific weapon levels.
+- **Persistent Weapon Stats**: Track Kills, Headshots, and Playtime per weapon.
 
 ## [0.2.4] - 2026-01-11 - Phase 5 Step 5.2 (Customization UI)
 ### Added
@@ -24,11 +27,9 @@ All notable changes to this project will be documented in this file.
     - Save/Load Manager for Import/Export of profiles.
 - **Persistence**: Player stats (Kills, Playtime, Rounds) now persist to the profile.
 - **XP & Leveling**: Implemented basic XP gain from kills and rounds, with a visual XP bar.
-
 ### Changed
 - Updated `MainGameScene` to track session stats (Kills, Start Time) and update profile on Game Over.
 - Incremented game version to 0.2.3.
-
 ## [0.2.2] - 2026-01-10
 ### Added
 - **Editor History**: Implemented Undo/Redo for tile painting, object placement, movement, and property updates.
@@ -73,7 +74,6 @@ All notable changes to this project will be documented in this file.
 - Editor: Support for placing Spawners, Machines, Perks, Barricades, Doors, Mystery Box, PackAPunch.
 
 ## [0.1.19] - 2025-01-08 - Phase 4 Step 4.1 (Editor UI & Interaction)
-### Added
 - **Editor System**:
   - `src/game/scenes/EditorScene.ts`: New scene for map editing with grid visualization.
   - `src/game/ui/Editor/EditorSidebar.tsx`: UI for selecting tiles and tools.
@@ -84,7 +84,6 @@ All notable changes to this project will be documented in this file.
   - Added Editor state handling in `App.tsx` and `PhaserGame.tsx`.
 
 ## [0.1.18] - 2025-01-07
-
 ### Added
 - **Power Ups System**:
   - Drops from zombies (Max Ammo, Nuke, Insta-Kill, Double Points, Carpenter).
@@ -104,7 +103,6 @@ All notable changes to this project will be documented in this file.
   - Active PowerUps HUD.
   - Round Counter synced with Game Store.
   - Interaction Prompts.
-
 ### Fixed
 - **Critical Fixes**:
   - Fixed "Black Screen" issue when resuming from pause (physics synchronization).
@@ -115,7 +113,6 @@ All notable changes to this project will be documented in this file.
 - **Map Integration**: Default map updated with Perk Machines and PaP locations.
 - **MapManager**: Updated to parse `perk_machine` and `pack_a_punch` objects.
 - **Test Map**: Added `src/tests/perkMapTest.ts` for isolated testing.
-
 - **WeaponSystem**: Fixed logic for weapon upgrades (ammo state vs attributes).
 
 ## [0.1.17] - Phase 3 Step 3.2 (Economy & Items)
@@ -145,7 +142,6 @@ All notable changes to this project will be documented in this file.
     - Refactored `Spawner.ts` to be controlled by `WaveManager`.
 
 ## [0.1.15] - Phase 2 Step 2.3 (Interactables & Barriers)
-### Added
 - **Interaction System**:
     - `src/game/interfaces/IInteractable.ts`: Interface for entities that respond to 'F' key.
     - Updated `Player.ts` to scan for nearest interactable and trigger interaction logic.
@@ -175,7 +171,6 @@ All notable changes to this project will be documented in this file.
     - Added procedural `zombie` texture (Green/Red/Black) in `BootScene`.
 - **Tests**:
     - `src/tests/zombieTests.ts`: Verifies pathfinding grid generation and zombie movement logic.
-
 ### Changed
 - **MainGameScene**:
     - Initialized `PathfindingManager` with map data.
@@ -198,7 +193,6 @@ All notable changes to this project will be documented in this file.
     - Added procedural `tileset` generation in `BootScene` (Index 0: Floor, Index 1: Wall).
 - **Tests**:
     - `src/tests/mapTests.ts`: Verifies schema validation (success/failure cases) and Tilemap layer creation.
-
 ### Changed
 - **MainGameScene**:
     - Removed procedural "Random Obstacles" generation.
@@ -206,12 +200,10 @@ All notable changes to this project will be documented in this file.
     - Updated physics collisions to use the Map's Wall Layer instead of the `obstacleGroup`.
 
 ## [0.1.12] - Phase 1 Step 1.4 (Juice & VFX)
-### Added
 - **Visual Effects**:
     - **Projectile System**: Replaced instant raycasting with physical `Projectile` sprites that travel at high velocity (2000px/s). Bullets are recycled via Object Pooling for performance.
     - **Muzzle Flash**: Added a dynamic flash sprite at the gun tip that appears briefly when firing.
     - **Impact Sparks**: Added particle effects (yellow flares) when bullets collide with walls, crates, or enemies.
 - **Assets**: Programmatically generated textures for `bullet`, `muzzleflash`, and `flare` in `BootScene`.
-
 ### Changed
 - **Weapon System**: Refactored `WeaponSystem` to utilize `Physics.Arcade.Group` for bullet management instead of internal graphics drawing. Collisions are now handled in `MainGameScene`.

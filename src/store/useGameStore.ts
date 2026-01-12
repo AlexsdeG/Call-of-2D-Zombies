@@ -22,6 +22,7 @@ interface SessionReport {
   rounds: number;
   timePlayed: number;
   nextState: GameState; // Indicates where to go after stats
+  weaponXpInfo?: Record<string, { oldLevel: number, newLevel: number, levelUp: boolean, xpGained: number }>;
 }
 
 interface GameStore {

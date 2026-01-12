@@ -2,7 +2,7 @@
  * Global Magic Numbers and Constants
  * Reference this file instead of hardcoding values.
  */
-export const VERSION = "0.2.4";
+export const VERSION = "0.2.5";
 
 export const PLAYER = {
   DEFAULT_SPEED: 160, // pixels per second
