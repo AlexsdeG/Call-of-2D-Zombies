@@ -41,6 +41,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private readonly MELEE_COOLDOWN = 500;
   private readonly MELEE_RANGE = 80;
 
+  // Regeneration
+  private lastHitTime: number = 0;
+  private nextRegenTime: number = 0;
+  private readonly REGEN_DELAY = 5000;
+  private readonly REGEN_INTERVAL = 1000;
+  private readonly REGEN_AMOUNT = 10;
+
   // Sync timers
   public get health(): number {
       return this._health;
@@ -178,6 +185,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       if (!this.scene || !this.isValid || this.isDead) return;
 
       this.health = Math.max(0, this.health - amount);
+      this.lastHitTime = this.scene.time.now;
       this.setTint(0xff0000);
       
       this.scene.time.delayedCall(200, () => {
@@ -234,6 +242,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.updateInteractionPrompt();
 
     this.updateGlobalState(time);
+
+    // Health Regeneration
+    if (this.health < this.maxHealth && !this.isDead) { // Check dead again just in case
+        if (time - this.lastHitTime >= this.REGEN_DELAY) {
+            if (time >= this.nextRegenTime) {
+                this.health = Math.min(this.maxHealth, this.health + this.REGEN_AMOUNT);
+                this.nextRegenTime = time + this.REGEN_INTERVAL;
+                EventBus.emit("player-stats-update", { health: this.health });
+            }
+        }
+    }
     
     // Track Weapon Playtime
     const currentWeapon = this.weaponSystem.getActiveWeaponStats();

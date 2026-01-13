@@ -12,6 +12,7 @@ import './tests/mapTests';
 import './tests/zombieTests';
 import './tests/interactionTests'; 
 import './tests/editorTests';
+import './tests/healthTests';
 import { runProfilePersistenceTest } from './tests/profilePersistenceTest';
 (window as any).runPersistenceTest = runProfilePersistenceTest;
 import { ActivePowerUps } from './game/ui/ActivePowerUps';
